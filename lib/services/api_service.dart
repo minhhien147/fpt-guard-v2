@@ -5,7 +5,7 @@ class ApiService {
   static final Dio _dio = Dio();
   
   // Base URL cho backend Flask trên Railway
-  static const String baseUrl = 'https://web-production-7cfe9.up.railway.app/api';
+  static const String baseUrl = 'https://web-production-dd806.up.railway.app/api';
 
   // Lấy tin tức
   static Future<List<NewsModel>> getNews() async {

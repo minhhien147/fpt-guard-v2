@@ -58,22 +58,10 @@ Password: password123
 
 App đang kết nối với backend trên Railway:
 ```
-URL: https://your-railway-url.up.railway.app
+URL: https://web-production-dd806.up.railway.app
 ```
 
-**⚠️ Cần Đổi URL:**
-
-### File: `lib/services/auth_service.dart`
-```dart
-static const String baseUrl = 'https://your-railway-url.up.railway.app';
-```
-
-### File: `lib/services/api_service.dart`
-```dart
-static const String baseUrl = 'https://your-railway-url.up.railway.app';
-```
-
-**Thay `your-railway-url` bằng domain Railway thật của bạn!**
+**✅ Đã cấu hình sẵn!** Backend URL đã được set trong code.
 
 ---
 
@@ -81,7 +69,7 @@ static const String baseUrl = 'https://your-railway-url.up.railway.app';
 
 Truy cập:
 ```
-https://your-railway-url.up.railway.app/admin
+https://web-production-dd806.up.railway.app/admin
 ```
 
 Login:

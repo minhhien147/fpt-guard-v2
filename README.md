@@ -37,8 +37,8 @@ flutter run
 
 **Backend đã deploy lên Railway - chạy 24/7:**
 
-- **Admin Dashboard**: `https://your-railway-url.up.railway.app/admin`
-- **API Endpoint**: `https://your-railway-url.up.railway.app/api`
+- **Admin Dashboard**: `https://web-production-dd806.up.railway.app/admin`
+- **API Endpoint**: `https://web-production-dd806.up.railway.app/api`
 
 **Login Admin:**
 ```

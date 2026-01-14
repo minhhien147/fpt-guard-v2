@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://10.0.2.2:5000'; // Android Emulator (localhost)
+  static const String baseUrl = 'https://web-production-dd806.up.railway.app'; // Railway Backend
   
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
