@@ -1,0 +1,128 @@
+{
+  "@@locale": "en",
+  
+  "appTitle": "FPT Guard",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  
+  "hello": "Hello",
+  "@hello": {
+    "description": "Greeting"
+  },
+  
+  "currentLocation": "Current Location",
+  "gettingLocation": "Getting location...",
+  "coordinates": "Coordinates",
+  "share": "Share",
+  "shareLocation": "Share Location",
+  
+  "mekongWaterLevel": "Mekong River Water Level",
+  "track5Stations": "Track 5 Delta Stations",
+  
+  "sosButton": "SOS Emergency",
+  "sendingSOS": "Sending SOS...",
+  
+  "quickCall": "Quick Call",
+  "add": "Add",
+  "addContact": "Add Contact",
+  "name": "Name",
+  "nameHint": "E.g.: Dad, Mom, Best friend...",
+  "phoneNumber": "Phone Number",
+  "phoneHint": "E.g.: 0901234567",
+  "cancel": "Cancel",
+  
+  "emergencyContacts": "Emergency Contacts",
+  "security": "Security",
+  "police": "Police 113",
+  "hospital": "Hospital 115",
+  "fireStation": "Fire Station 114",
+  
+  "personalContacts": "Personal Contacts",
+  "deleteContact": "Delete Contact",
+  "deleteContactConfirm": "Are you sure you want to delete \"{name}\" from contacts?",
+  "@deleteContactConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "Delete",
+  
+  "settings": "Settings",
+  "personalInfo": "Personal Information",
+  "fullName": "Full Name",
+  "fullNameRequired": "Full Name *",
+  "studentId": "Student ID",
+  "studentIdRequired": "Student ID *",
+  "phone": "Phone",
+  "phoneRequired": "Phone *",
+  "email": "Email",
+  "emailRequired": "Email *",
+  "emailHelper": "Email to receive emergency alerts",
+  
+  "saveInfo": "Save Information",
+  "saved": "Information saved",
+  "error": "An error occurred",
+  
+  "appInfo": "App Information",
+  "version": "Version",
+  "organization": "Organization",
+  "organizationName": "FPT University Can Tho",
+  "application": "Application",
+  "appName": "FPT Guard 2.0",
+  
+  "language": "Language",
+  "selectLanguage": "Select Language",
+  "vietnamese": "Tiếng Việt",
+  "english": "English",
+  "japanese": "日本語",
+  
+  "validationName": "Please enter your name",
+  "validationStudentId": "Please enter student ID",
+  "validationPhone": "Please enter phone number",
+  "validationEmail": "Please enter email",
+  "validationEmailInvalid": "Invalid email",
+  
+  "updateUserInfo": "Please update personal information in Settings",
+  "gettingLocationProgress": "Getting location...",
+  "cannotGetLocation": "Cannot get location. Please enable GPS",
+  "pleaseAddEmergencyEmail": "Please add emergency contact email in Contacts",
+  "cannotCall": "Cannot make call",
+  "noContactWithEmail": "No contact with email to share",
+  "sendingLocation": "Sending location...",
+  "locationShared": "✅ Location shared successfully!",
+  "cannotShareLocation": "❌ Cannot share location",
+  "locationUpdated": "Location updated",
+  "pleaseEnterAllInfo": "Please enter all information",
+  "contactAdded": "Contact added",
+  "cannotAddContact": "Cannot add contact",
+  "contactDeleted": "Contact deleted",
+  "cannotDeleteContact": "Cannot delete contact",
+  
+  "shakeDetected": "Shake Detected!",
+  "sendSOSNow": "Send SOS emergency alert immediately?\n(No photo needed)",
+  "sendSOSButton": "Send SOS Now",
+  "autoWarning": "⚠️ AUTO WARNING: Emergency shake detected from device!",
+  "sosSentSuccess": "✅ SOS alert sent to {count} email(s)!",
+  "@sosSentSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sosError": "❌ Error sending email",
+  
+  "refresh": "Refresh",
+  "call": "Call",
+  
+  "contacts": "Contacts",
+  "location": "Location",
+  "news": "News",
+  "tide": "Tide",
+  "waterLevel": "Water Level",
+  "sosForm": "SOS Form",
+  "home": "Home"
+}

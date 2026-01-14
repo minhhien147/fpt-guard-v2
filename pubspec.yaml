@@ -1,0 +1,89 @@
+name: fpt_guard_v2
+description: FPT Guard 2.0 - Ứng dụng bảo vệ sinh viên FPT (Mobile Version)
+version: 2.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  # UI & Icons
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
+  flutter_svg: ^2.0.9
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Network & API
+  http: ^1.1.2
+  dio: ^5.4.0
+  
+  # Local Storage
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  
+  # Location & Maps
+  geolocator: ^10.1.0
+  geocoding: ^2.1.1
+  url_launcher: ^6.2.2
+  
+  # Email
+  mailer: ^6.0.1
+  
+  # Notifications (commented out - not compatible with SDK 36)
+  # flutter_local_notifications: ^15.1.0
+  
+  # Phone & Contacts
+  flutter_phone_direct_caller: ^2.1.1
+  
+  # Shake Detection
+  shake: ^3.0.0
+  
+  # Camera & Image
+  image_picker: ^1.0.7
+  
+  # Date & Time
+  intl: ^0.20.2
+  
+  # Utils
+  flutter_dotenv: ^5.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/app_icon.jpg"
+  adaptive_icon_background: "#FF9500"
+  adaptive_icon_foreground: "assets/images/app_icon.jpg"
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    - .env
+  
+  # Generate localization files
+  generate: true
+  
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: assets/fonts/Roboto-Regular.ttf
+  #       - asset: assets/fonts/Roboto-Bold.ttf
+  #         weight: 700
+  # Note: Download Roboto fonts from https://fonts.google.com/specimen/Roboto
+  # and place them in assets/fonts/ directory, then uncomment above section
+

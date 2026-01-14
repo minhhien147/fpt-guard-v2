@@ -1,0 +1,454 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/user_provider.dart';
+import '../providers/locale_provider.dart';
+import '../models/user_model.dart';
+import '../widgets/custom_drawer.dart';
+import '../services/auth_service.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _studentIdController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    final userProvider = context.read<UserProvider>();
+    if (userProvider.hasUser) {
+      final user = userProvider.user!;
+      _nameController.text = user.fullName;
+      _studentIdController.text = user.studentId;
+      _phoneController.text = user.phone;
+      _emailController.text = user.email;
+    }
+  }
+
+  Future<void> _saveUser() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final user = UserModel(
+      fullName: _nameController.text,
+      studentId: _studentIdController.text,
+      phone: _phoneController.text,
+      email: _emailController.text,
+      createdAt: DateTime.now(),
+    );
+
+    final success = await context.read<UserProvider>().saveUser(user);
+
+    setState(() => _isLoading = false);
+
+    if (mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? l10n.saved : l10n.error),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+  
+  void _showLanguageDialog(BuildContext context, LocaleProvider localeProvider) {
+    final l10n = AppLocalizations.of(context)!;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.selectLanguage),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: LocaleProvider.supportedLocales.map((locale) {
+            return RadioListTile<Locale>(
+              title: Text(localeProvider.getLanguageName(locale.languageCode)),
+              value: locale,
+              groupValue: localeProvider.locale,
+              onChanged: (Locale? value) {
+                if (value != null) {
+                  localeProvider.setLocale(value);
+                  Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      // Logout
+      await AuthService().logout();
+      
+      // Clear user provider
+      if (mounted) {
+        context.read<UserProvider>().clearUser();
+      }
+      
+      // Navigate to login
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _studentIdController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final localeProvider = context.watch<LocaleProvider>();
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.settings),
+      ),
+      drawer: const CustomDrawer(),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Profile icon
+              Center(
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person,
+                    size: 50,
+                    color: Colors.orange[700],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Language selection
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.language,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      ListTile(
+                        leading: const Icon(Icons.language),
+                        title: Text(l10n.selectLanguage),
+                        subtitle: Text(localeProvider.getLanguageName(localeProvider.locale.languageCode)),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => _showLanguageDialog(context, localeProvider),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Form fields
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.personalInfo,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: l10n.fullNameRequired,
+                          prefixIcon: const Icon(Icons.person),
+                          border: const OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return l10n.validationName;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      
+                      TextFormField(
+                        controller: _studentIdController,
+                        decoration: InputDecoration(
+                          labelText: l10n.studentIdRequired,
+                          prefixIcon: const Icon(Icons.badge),
+                          border: const OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return l10n.validationStudentId;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: InputDecoration(
+                          labelText: l10n.phoneRequired,
+                          prefixIcon: const Icon(Icons.phone),
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return l10n.validationPhone;
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: l10n.emailRequired,
+                          prefixIcon: const Icon(Icons.email),
+                          border: const OutlineInputBorder(),
+                          helperText: l10n.emailHelper,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return l10n.validationEmail;
+                          }
+                          if (!value.contains('@')) {
+                            return l10n.validationEmailInvalid;
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Save button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _saveUser,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        l10n.saveInfo,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+              ),
+              
+              const SizedBox(height: 30),
+              
+              // App info
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.appInfo,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      _InfoRow(
+                        icon: Icons.info,
+                        label: l10n.version,
+                        value: '2.0.0',
+                      ),
+                      const Divider(),
+                      _InfoRow(
+                        icon: Icons.school,
+                        label: l10n.organization,
+                        value: l10n.organizationName,
+                      ),
+                      const Divider(),
+                      _InfoRow(
+                        icon: Icons.shield,
+                        label: l10n.application,
+                        value: l10n.appName,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Logout button (only show if logged in)
+              if (AuthService().isLoggedIn) ...[
+                const SizedBox(height: 20),
+                Card(
+                  color: Colors.red[50],
+                  child: InkWell(
+                    onTap: _handleLogout,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, color: Colors.red[700]),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Đăng xuất',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[900],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Đăng xuất khỏi tài khoản hiện tại',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red[700]),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 30),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

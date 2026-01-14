@@ -1,0 +1,128 @@
+{
+  "@@locale": "ja",
+  
+  "appTitle": "FPT Guard",
+  "@appTitle": {
+    "description": "アプリケーションタイトル"
+  },
+  
+  "hello": "こんにちは",
+  "@hello": {
+    "description": "挨拶"
+  },
+  
+  "currentLocation": "現在地",
+  "gettingLocation": "位置情報を取得中...",
+  "coordinates": "座標",
+  "share": "共有",
+  "shareLocation": "位置を共有",
+  
+  "mekongWaterLevel": "メコン川の水位",
+  "track5Stations": "デルタの5つの駅を追跡",
+  
+  "sosButton": "SOS緊急",
+  "sendingSOS": "SOSを送信中...",
+  
+  "quickCall": "クイックコール",
+  "add": "追加",
+  "addContact": "連絡先を追加",
+  "name": "名前",
+  "nameHint": "例: お父さん、お母さん、親友...",
+  "phoneNumber": "電話番号",
+  "phoneHint": "例: 0901234567",
+  "cancel": "キャンセル",
+  
+  "emergencyContacts": "緊急連絡先",
+  "security": "警備",
+  "police": "警察 113",
+  "hospital": "病院 115",
+  "fireStation": "消防署 114",
+  
+  "personalContacts": "個人の連絡先",
+  "deleteContact": "連絡先を削除",
+  "deleteContactConfirm": "連絡先から\"{name}\"を削除してもよろしいですか？",
+  "@deleteContactConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "削除",
+  
+  "settings": "設定",
+  "personalInfo": "個人情報",
+  "fullName": "氏名",
+  "fullNameRequired": "氏名 *",
+  "studentId": "学生ID",
+  "studentIdRequired": "学生ID *",
+  "phone": "電話番号",
+  "phoneRequired": "電話番号 *",
+  "email": "メール",
+  "emailRequired": "メール *",
+  "emailHelper": "緊急アラートを受信するメール",
+  
+  "saveInfo": "情報を保存",
+  "saved": "情報が保存されました",
+  "error": "エラーが発生しました",
+  
+  "appInfo": "アプリ情報",
+  "version": "バージョン",
+  "organization": "組織",
+  "organizationName": "FPT大学カントー",
+  "application": "アプリケーション",
+  "appName": "FPT Guard 2.0",
+  
+  "language": "言語",
+  "selectLanguage": "言語を選択",
+  "vietnamese": "Tiếng Việt",
+  "english": "English",
+  "japanese": "日本語",
+  
+  "validationName": "名前を入力してください",
+  "validationStudentId": "学生IDを入力してください",
+  "validationPhone": "電話番号を入力してください",
+  "validationEmail": "メールを入力してください",
+  "validationEmailInvalid": "無効なメール",
+  
+  "updateUserInfo": "設定で個人情報を更新してください",
+  "gettingLocationProgress": "位置情報を取得中...",
+  "cannotGetLocation": "位置情報を取得できません。GPSを有効にしてください",
+  "pleaseAddEmergencyEmail": "連絡先に緊急連絡先メールを追加してください",
+  "cannotCall": "電話をかけられません",
+  "noContactWithEmail": "共有するメールを持つ連絡先がありません",
+  "sendingLocation": "位置を送信中...",
+  "locationShared": "✅ 位置が正常に共有されました！",
+  "cannotShareLocation": "❌ 位置を共有できません",
+  "locationUpdated": "位置が更新されました",
+  "pleaseEnterAllInfo": "すべての情報を入力してください",
+  "contactAdded": "連絡先が追加されました",
+  "cannotAddContact": "連絡先を追加できません",
+  "contactDeleted": "連絡先が削除されました",
+  "cannotDeleteContact": "連絡先を削除できません",
+  
+  "shakeDetected": "振動を検知！",
+  "sendSOSNow": "緊急SOSアラートをすぐに送信しますか？\n（写真は不要）",
+  "sendSOSButton": "今すぐSOSを送信",
+  "autoWarning": "⚠️ 自動警告: デバイスから緊急振動が検出されました！",
+  "sosSentSuccess": "✅ SOSアラートが{count}通のメールに送信されました！",
+  "@sosSentSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sosError": "❌ メール送信エラー",
+  
+  "refresh": "更新",
+  "call": "電話",
+  
+  "contacts": "連絡先",
+  "location": "位置",
+  "news": "ニュース",
+  "tide": "潮汐",
+  "waterLevel": "水位",
+  "sosForm": "SOSフォーム",
+  "home": "ホーム"
+}

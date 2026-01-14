@@ -1,0 +1,128 @@
+{
+  "@@locale": "vi",
+  
+  "appTitle": "FPT Guard",
+  "@appTitle": {
+    "description": "Tiêu đề ứng dụng"
+  },
+  
+  "hello": "Xin chào",
+  "@hello": {
+    "description": "Lời chào"
+  },
+  
+  "currentLocation": "Vị trí hiện tại",
+  "gettingLocation": "Đang lấy vị trí...",
+  "coordinates": "Tọa độ",
+  "share": "Chia sẻ",
+  "shareLocation": "Chia sẻ vị trí",
+  
+  "mekongWaterLevel": "Mực nước Sông Mekong",
+  "track5Stations": "Theo dõi 5 trạm ĐBSCL",
+  
+  "sosButton": "SOS Khẩn cấp",
+  "sendingSOS": "Đang gửi SOS...",
+  
+  "quickCall": "Gọi nhanh",
+  "add": "Thêm",
+  "addContact": "Thêm liên lạc",
+  "name": "Tên",
+  "nameHint": "Ví dụ: Bố, Mẹ, Bạn thân...",
+  "phoneNumber": "Số điện thoại",
+  "phoneHint": "Ví dụ: 0901234567",
+  "cancel": "Hủy",
+  
+  "emergencyContacts": "Liên hệ khẩn cấp",
+  "security": "Bảo vệ",
+  "police": "Công an 113",
+  "hospital": "Cấp cứu 115",
+  "fireStation": "Cứu hỏa 114",
+  
+  "personalContacts": "Danh bạ cá nhân",
+  "deleteContact": "Xóa liên lạc",
+  "deleteContactConfirm": "Bạn có chắc muốn xóa \"{name}\" khỏi danh bạ?",
+  "@deleteContactConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "Xóa",
+  
+  "settings": "Cài đặt",
+  "personalInfo": "Thông tin cá nhân",
+  "fullName": "Họ và tên",
+  "fullNameRequired": "Họ và tên *",
+  "studentId": "Mã số sinh viên",
+  "studentIdRequired": "Mã số sinh viên *",
+  "phone": "Số điện thoại",
+  "phoneRequired": "Số điện thoại *",
+  "email": "Email",
+  "emailRequired": "Email *",
+  "emailHelper": "Email để nhận cảnh báo khẩn cấp",
+  
+  "saveInfo": "Lưu thông tin",
+  "saved": "Đã lưu thông tin",
+  "error": "Có lỗi xảy ra",
+  
+  "appInfo": "Thông tin ứng dụng",
+  "version": "Phiên bản",
+  "organization": "Đơn vị",
+  "organizationName": "FPT University Cần Thơ",
+  "application": "Ứng dụng",
+  "appName": "FPT Guard 2.0",
+  
+  "language": "Ngôn ngữ",
+  "selectLanguage": "Chọn ngôn ngữ",
+  "vietnamese": "Tiếng Việt",
+  "english": "English",
+  "japanese": "日本語",
+  
+  "validationName": "Vui lòng nhập họ tên",
+  "validationStudentId": "Vui lòng nhập MSSV",
+  "validationPhone": "Vui lòng nhập số điện thoại",
+  "validationEmail": "Vui lòng nhập email",
+  "validationEmailInvalid": "Email không hợp lệ",
+  
+  "updateUserInfo": "Vui lòng cập nhật thông tin cá nhân trong Cài đặt",
+  "gettingLocationProgress": "Đang lấy vị trí...",
+  "cannotGetLocation": "Không thể lấy vị trí. Vui lòng bật GPS",
+  "pleaseAddEmergencyEmail": "Vui lòng thêm email liên hệ khẩn cấp trong Danh bạ",
+  "cannotCall": "Không thể gọi điện",
+  "noContactWithEmail": "Không có liên hệ nào có email để chia sẻ",
+  "sendingLocation": "Đang gửi vị trí...",
+  "locationShared": "✅ Đã chia sẻ vị trí thành công!",
+  "cannotShareLocation": "❌ Không thể chia sẻ vị trí",
+  "locationUpdated": "Đã cập nhật vị trí",
+  "pleaseEnterAllInfo": "Vui lòng nhập đầy đủ thông tin",
+  "contactAdded": "Đã thêm liên lạc",
+  "cannotAddContact": "Không thể thêm liên lạc",
+  "contactDeleted": "Đã xóa liên lạc",
+  "cannotDeleteContact": "Không thể xóa liên lạc",
+  
+  "shakeDetected": "Phát hiện rung lắc!",
+  "sendSOSNow": "Gửi cảnh báo SOS khẩn cấp ngay lập tức?\n(Không cần chụp ảnh)",
+  "sendSOSButton": "Gửi SOS Ngay",
+  "autoWarning": "⚠️ CẢNH BÁO TỰ ĐỘNG: Phát hiện rung lắc khẩn cấp từ thiết bị!",
+  "sosSentSuccess": "✅ Đã gửi cảnh báo SOS đến {count} email!",
+  "@sosSentSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sosError": "❌ Có lỗi khi gửi email",
+  
+  "refresh": "Làm mới",
+  "call": "Gọi",
+  
+  "contacts": "Danh bạ",
+  "location": "Vị trí",
+  "news": "Tin tức",
+  "tide": "Thủy triều",
+  "waterLevel": "Mực nước",
+  "sosForm": "Biểu mẫu SOS",
+  "home": "Trang chủ"
+}
