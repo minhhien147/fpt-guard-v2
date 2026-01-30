@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
@@ -8,7 +10,10 @@ import '../providers/location_provider.dart';
 import '../providers/contacts_provider.dart';
 import '../services/email_service.dart';
 import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../services/tide_service.dart';
+import '../services/volume_sos_service.dart';
+import '../services/audio_recording_service.dart';
 import '../models/tide_model.dart';
 import '../models/contact_model.dart';
 import '../widgets/custom_drawer.dart';
@@ -26,6 +31,8 @@ class _HomeScreenState extends State<HomeScreen> {
   TideModel? _todayTide;
   ShakeDetector? _shakeDetector;
   bool _shakeToSOSEnabled = true; // Có thể lưu vào SharedPreferences
+  final VolumeSOSService _volumeSOSService = VolumeSOSService();
+  bool _volumeSOSEnabled = true; // Có thể lưu vào SharedPreferences
 
   @override
   void initState() {
@@ -35,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<LocationProvider>().startLocationTracking();
       _loadTodayTide();
       _initShakeDetector();
+      _initVolumeSOSDetector();
     });
   }
 
@@ -52,6 +60,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _initVolumeSOSDetector() {
+    if (!_volumeSOSEnabled) return;
+    
+    _volumeSOSService.initialize(
+      onTriplePress: () {
+        _onVolumeTriplePress();
+      },
+    );
+  }
+
   void _onShakeDetected() {
     if (_isSendingSOS) return; // Đang gửi SOS rồi thì không làm gì
     
@@ -62,12 +80,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _showShakeSOSDialog();
   }
 
+  void _onVolumeTriplePress() {
+    if (_isSendingSOS) return; // Đang gửi SOS rồi thì không làm gì
+    
+    // Hiển thị dialog xác nhận
+    _showVolumeSOSDialog();
+  }
+
   void _showShakeSOSDialog() {
     final l10n = AppLocalizations.of(context)!;
+    Timer? autoSendTimer;
+    autoSendTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _sendQuickSOS();
+    });
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         icon: const Icon(
           Icons.warning_amber_rounded,
           color: Colors.red,
@@ -78,19 +109,105 @@ class _HomeScreenState extends State<HomeScreen> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        content: Text(
-          l10n.sendSOSNow,
-          textAlign: TextAlign.center,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.sendSOSNow,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.autoSendSOSIn5Seconds,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ),
         actionsAlignment: MainAxisAlignment.spaceEvenly,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              autoSendTimer?.cancel();
+              Navigator.pop(dialogContext);
+            },
             child: Text(l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              autoSendTimer?.cancel();
+              Navigator.pop(dialogContext);
+              _sendQuickSOS();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.sendSOSButton),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVolumeSOSDialog() {
+    final l10n = AppLocalizations.of(context)!;
+    Timer? autoSendTimer;
+    autoSendTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _sendQuickSOS();
+    });
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.volume_up_rounded,
+          color: Colors.red,
+          size: 48,
+        ),
+        title: const Text(
+          '🚨 PHÁT HIỆN NÚT ÂM LƯỢNG',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.sendSOSNow,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.autoSendSOSIn5Seconds,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          TextButton(
+            onPressed: () {
+              autoSendTimer?.cancel();
+              Navigator.pop(dialogContext);
+            },
+            child: Text(l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              autoSendTimer?.cancel();
+              Navigator.pop(dialogContext);
               _sendQuickSOS();
             },
             style: ElevatedButton.styleFrom(
@@ -115,6 +232,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     // Tắt shake detector
     _shakeDetector?.stopListening();
+    // Tắt volume SOS detector
+    _volumeSOSService.dispose();
     // Tắt tracking khi rời màn hình để tiết kiệm pin
     context.read<LocationProvider>().stopLocationTracking();
     super.dispose();
@@ -177,6 +296,16 @@ class _HomeScreenState extends State<HomeScreen> {
       final longitude = locationProvider.longitude!;
       final address = locationProvider.currentAddress;
 
+      // (1) Gửi SOS lên backend để Admin Dashboard cập nhật (nếu đã đăng nhập)
+      Map<String, dynamic>? apiResult;
+      if (AuthService().isLoggedIn) {
+        apiResult = await AuthService().createSOSReport(
+          latitude: latitude,
+          longitude: longitude,
+          message: l10n.autoWarning,
+        );
+      }
+
       // Lưu SOS alert vào database
       await DatabaseService.instance.insertSOSAlert(
         userId: user.id ?? 1,
@@ -198,7 +327,23 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Gửi email SOS không cần ảnh và mô tả
+      // Ghi âm 5 giây cho trường hợp khẩn cấp (shake/volume trigger)
+      File? audioFile;
+      if (mounted) {
+        _showMessage('🎤 Đang ghi âm...', isError: false);
+      }
+      
+      try {
+        audioFile = await AudioRecordingService().recordAudio(durationSeconds: 5);
+        if (mounted && audioFile != null) {
+          _showMessage('✅ Đã ghi âm xong, đang gửi SOS...', isError: false);
+        }
+      } catch (e) {
+        debugPrint('Error recording audio: $e');
+        // Tiếp tục gửi SOS dù không ghi được âm
+      }
+
+      // Gửi email SOS với file audio đính kèm
       final success = await EmailService.sendSOSEmail(
         userName: user.fullName,
         userEmail: user.email,
@@ -208,13 +353,29 @@ class _HomeScreenState extends State<HomeScreen> {
         recipientEmails: emails,
         description: l10n.autoWarning,
         imageFile: null, // Không cần ảnh
+        audioFile: audioFile, // Đính kèm file audio nếu có
       );
 
       if (mounted) {
-        if (success) {
-          _showMessage(l10n.sosSentSuccess(emails.length), isError: false);
+        if (apiResult != null && apiResult['success'] == true) {
+          // Server đã nhận SOS -> dashboard sẽ thấy
+          final msg = success
+              ? '✅ Đã gửi SOS lên hệ thống + ${emails.length} email!'
+              : '✅ Đã gửi SOS lên hệ thống (email thất bại)';
+          _showMessage(msg, isError: false);
+        } else if (apiResult != null && apiResult['success'] == false) {
+          // Có token nhưng post fail (thường do token hết hạn)
+          final msg = success
+              ? '⚠️ Đã gửi email nhưng lỗi server: ${apiResult['error']}'
+              : '❌ Lỗi server: ${apiResult['error']}';
+          _showMessage(msg, isError: !success);
         } else {
-          _showMessage(l10n.sosError, isError: true);
+          // Chưa đăng nhập -> không post server được, chỉ email
+          if (success) {
+            _showMessage(l10n.sosSentSuccess(emails.length), isError: false);
+          } else {
+            _showMessage(l10n.sosError, isError: true);
+          }
         }
       }
     } catch (e) {
@@ -626,64 +787,64 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Mực nước sông Mekong
-              Card(
-                color: Colors.lightBlue[50],
-                child: InkWell(
-                  onTap: () {
-                    Navigator.pushNamed(context, '/water-level');
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[700],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.waves,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.mekongWaterLevel,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                l10n.track5Stations,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+              // Mực nước sông Mekong - ĐÃ ẨN (uncomment để bật lại)
+              // Card(
+              //   color: Colors.lightBlue[50],
+              //   child: InkWell(
+              //     onTap: () {
+              //       Navigator.pushNamed(context, '/water-level');
+              //     },
+              //     borderRadius: BorderRadius.circular(12),
+              //     child: Padding(
+              //       padding: const EdgeInsets.all(16.0),
+              //       child: Row(
+              //         children: [
+              //           Container(
+              //             padding: const EdgeInsets.all(12),
+              //             decoration: BoxDecoration(
+              //               color: Colors.blue[700],
+              //               borderRadius: BorderRadius.circular(12),
+              //             ),
+              //             child: const Icon(
+              //               Icons.waves,
+              //               color: Colors.white,
+              //               size: 28,
+              //             ),
+              //           ),
+              //           const SizedBox(width: 16),
+              //           Expanded(
+              //             child: Column(
+              //               crossAxisAlignment: CrossAxisAlignment.start,
+              //               children: [
+              //                 Text(
+              //                   l10n.mekongWaterLevel,
+              //                   style: const TextStyle(
+              //                     fontSize: 16,
+              //                     fontWeight: FontWeight.bold,
+              //                   ),
+              //                 ),
+              //                 const SizedBox(height: 4),
+              //                 Text(
+              //                   l10n.track5Stations,
+              //                   style: const TextStyle(
+              //                     fontSize: 13,
+              //                     color: Colors.grey,
+              //                   ),
+              //                 ),
+              //               ],
+              //             ),
+              //           ),
+              //           const Icon(
+              //             Icons.arrow_forward_ios,
+              //             size: 16,
+              //             color: Colors.grey,
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //   ),
+              // ),
+              // const SizedBox(height: 20),
 
               // SOS Button
               SOSButton(

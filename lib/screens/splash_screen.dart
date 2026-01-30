@@ -89,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
             
             // App name
             const Text(
-              'FPT Guard',
+              'SAFE GUARD',
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,

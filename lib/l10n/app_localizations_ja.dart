@@ -9,7 +9,7 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
-  String get appTitle => 'FPT Guard';
+  String get appTitle => 'SAFE GUARD';
 
   @override
   String get hello => 'こんにちは';
@@ -152,7 +152,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get application => 'アプリケーション';
 
   @override
-  String get appName => 'FPT Guard 2.0';
+  String get appName => 'SAFE GUARD';
 
   @override
   String get language => '言語';
@@ -237,6 +237,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get sendSOSButton => '今すぐSOSを送信';
+
+  @override
+  String get autoSendSOSIn5Seconds => 'キャンセルしない場合、5秒後に自動で録音してSOSを送信します。';
 
   @override
   String get autoWarning => '⚠️ 自動警告: デバイスから緊急振動が検出されました！';

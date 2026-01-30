@@ -9,7 +9,7 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
-  String get appTitle => 'FPT Guard';
+  String get appTitle => 'SAFE GUARD';
 
   @override
   String get hello => 'Xin chào';
@@ -152,7 +152,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get application => 'Ứng dụng';
 
   @override
-  String get appName => 'FPT Guard 2.0';
+  String get appName => 'SAFE GUARD';
 
   @override
   String get language => 'Ngôn ngữ';
@@ -240,6 +240,10 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get sendSOSButton => 'Gửi SOS Ngay';
+
+  @override
+  String get autoSendSOSIn5Seconds =>
+      'Tự động ghi âm và gửi SOS sau 5 giây nếu không hủy.';
 
   @override
   String get autoWarning =>

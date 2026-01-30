@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.fpt.guard" "\0"
-            VALUE "FileDescription", "fpt_guard_v2" "\0"
+            VALUE "FileDescription", "SAFE GUARD" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "fpt_guard_v2" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.fpt.guard. All rights reserved." "\0"
-            VALUE "OriginalFilename", "fpt_guard_v2.exe" "\0"
-            VALUE "ProductName", "fpt_guard_v2" "\0"
+            VALUE "InternalName", "SAFE GUARD" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 SAFE GUARD. All rights reserved." "\0"
+            VALUE "OriginalFilename", "SAFE GUARD.exe" "\0"
+            VALUE "ProductName", "SAFE GUARD" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

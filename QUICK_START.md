@@ -111,4 +111,4 @@ Password: admin123
 
 ---
 
-**📱 Enjoy your FPT Guard 2.0 App!** 🌊
+**📱 Enjoy your SAFE GUARD App!** 🌊

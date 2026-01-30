@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         
                         // Title
                         Text(
-                          'FPT Guard 2.0',
+                          'SAFE GUARD',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: Colors.orange.shade600,

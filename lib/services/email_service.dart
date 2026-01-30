@@ -14,6 +14,7 @@ class EmailService {
     required List<String> recipientEmails,
     String? description,
     File? imageFile,
+    File? audioFile,
   }) async {
     try {
       // Lấy config từ .env
@@ -28,15 +29,22 @@ class EmailService {
       final smtpServer = gmail(smtpUsername, smtpPassword);
 
       final message = Message()
-        ..from = Address(smtpUsername, 'FPT Guard')
+        ..from = Address(smtpUsername, 'SAFE GUARD')
         ..recipients.addAll(recipientEmails)
         ..subject = '🚨 CẢNH BÁO KHẨN CẤP - $userName cần giúp đỡ!'
-        ..html = _buildSOSEmailBody(userName, userEmail, address, latitude, longitude, description: description);
+        ..html = _buildSOSEmailBody(userName, userEmail, address, latitude, longitude, description: description, audioFile: audioFile);
 
       // Đính kèm ảnh nếu có
       if (imageFile != null && await imageFile.exists()) {
         message.attachments.add(
           FileAttachment(imageFile)..fileName = 'sos_image.jpg',
+        );
+      }
+
+      // Đính kèm file audio nếu có (cho trường hợp khẩn cấp)
+      if (audioFile != null && await audioFile.exists()) {
+        message.attachments.add(
+          FileAttachment(audioFile)..fileName = 'sos_audio_${DateTime.now().millisecondsSinceEpoch}.m4a',
         );
       }
 
@@ -70,9 +78,9 @@ class EmailService {
       final smtpServer = gmail(smtpUsername, smtpPassword);
 
       final message = Message()
-        ..from = Address(smtpUsername, 'FPT Guard')
+        ..from = Address(smtpUsername, 'SAFE GUARD')
         ..recipients.add(recipientEmail)
-        ..subject = '📍 Chia sẻ vị trí từ $userName - FPT Guard'
+        ..subject = '📍 Chia sẻ vị trí từ $userName - SAFE GUARD'
         ..html = _buildLocationEmailBody(userName, userEmail, address, latitude, longitude);
 
       final sendReport = await send(message, smtpServer);
@@ -92,6 +100,7 @@ class EmailService {
     double latitude,
     double longitude, {
     String? description,
+    File? audioFile,
   }) {
     final now = DateTime.now();
     final time = '${now.hour}:${now.minute}:${now.second} - ${now.day}/${now.month}/${now.year}';
@@ -149,6 +158,17 @@ class EmailService {
             </p>
             ''' : ''}
             
+            ${audioFile != null ? '''
+            <div class="info-box" style="background-color: #fff3cd; border-left-color: #ff9800;">
+              <p style="margin: 0; color: #e65100;">
+                <strong>🎤 File âm thanh đính kèm:</strong> Đã ghi âm 5 giây từ thiết bị của $userName
+              </p>
+              <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                Mở file audio đính kèm để nghe âm thanh từ hiện trường
+              </p>
+            </div>
+            ''' : ''}
+            
             <h3 style="color: #333;">📞 Hành động cần thực hiện:</h3>
             <ul>
               <li>Hãy liên hệ ngay với $userName để xác nhận tình trạng</li>
@@ -157,7 +177,7 @@ class EmailService {
             </ul>
             
             <div class="footer">
-              <p>Email này được gửi tự động từ hệ thống FPT Guard 2.0</p>
+              <p>Email này được gửi tự động từ hệ thống SAFE GUARD</p>
               <p>Đừng trả lời email này.</p>
             </div>
           </div>
@@ -217,7 +237,7 @@ class EmailService {
             </div>
             
             <div class="footer">
-              <p>Email này được gửi tự động từ hệ thống FPT Guard 2.0</p>
+              <p>Email này được gửi tự động từ hệ thống SAFE GUARD</p>
             </div>
           </div>
         </div>

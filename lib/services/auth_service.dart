@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/user_model.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://web-production-dd806.up.railway.app'; // Railway Backend
+  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'https://web-production-dd806.up.railway.app';
   
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
@@ -18,7 +19,10 @@ class AuthService {
   String? get token => _token;
   UserModel? get currentUser => _currentUser;
   bool get isLoggedIn => _token != null;
-  
+
+  /// Gọi khi server trả 401/403 (token hết hạn hoặc tài khoản bị khóa) → app sẽ logout và chuyển về màn login.
+  void Function()? onUnauthorized;
+
   // Initialize - Load token from storage
   Future<bool> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -144,9 +148,13 @@ class AuthService {
           return true;
         }
       }
-      
-      // Token invalid or expired
-      await _clearAuthData();
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await _clearAuthData();
+        onUnauthorized?.call();
+      } else {
+        await _clearAuthData();
+      }
       return false;
     } catch (e) {
       print('Error loading current user: $e');
@@ -176,18 +184,22 @@ class AuthService {
       );
       
       final data = jsonDecode(response.body);
-      
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await _clearAuthData();
+        onUnauthorized?.call();
+        return {'success': false, 'error': data['error'] ?? 'Phiên đăng nhập đã hết hạn hoặc tài khoản bị khóa'};
+      }
       if (response.statusCode == 200 && data['success']) {
         _currentUser = UserModel.fromMap(data['data']);
         return {'success': true, 'user': _currentUser};
-      } else {
-        return {'success': false, 'error': data['error'] ?? 'Cập nhật thất bại'};
       }
+      return {'success': false, 'error': data['error'] ?? 'Cập nhật thất bại'};
     } catch (e) {
       return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
     }
   }
-  
+
   // Track activity
   Future<void> trackActivity(String action, Map<String, dynamic>? details) async {
     try {
@@ -230,17 +242,21 @@ class AuthService {
       );
       
       final data = jsonDecode(response.body);
-      
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await _clearAuthData();
+        onUnauthorized?.call();
+        return {'success': false, 'error': data['error'] ?? 'Phiên đăng nhập đã hết hạn hoặc tài khoản bị khóa'};
+      }
       if (response.statusCode == 201 && data['success']) {
         return {'success': true, 'report_id': data['data']['report_id']};
-      } else {
-        return {'success': false, 'error': data['error'] ?? 'Gửi báo cáo thất bại'};
       }
+      return {'success': false, 'error': data['error'] ?? 'Gửi báo cáo thất bại'};
     } catch (e) {
       return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
     }
   }
-  
+
   // Private methods
   
   Future<void> _saveAuthData(String token, String refreshToken, Map<String, dynamic> userData) async {
@@ -281,14 +297,15 @@ class AuthService {
       if (response.statusCode == 200 && data['success']) {
         _token = data['data']['token'];
         _refreshToken = data['data']['refresh_token'];
-        
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _token!);
         await prefs.setString('refresh_token', _refreshToken!);
-        
         return true;
       }
-      
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await _clearAuthData();
+        onUnauthorized?.call();
+      }
       return false;
     } catch (e) {
       print('Error refreshing token: $e');

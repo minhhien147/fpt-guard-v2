@@ -103,7 +103,7 @@ abstract class AppLocalizations {
   /// Application title
   ///
   /// In en, this message translates to:
-  /// **'FPT Guard'**
+  /// **'SAFE GUARD'**
   String get appTitle;
 
   /// Greeting
@@ -385,7 +385,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'FPT Guard 2.0'**
+  /// **'SAFE GUARD'**
   String get appName;
 
   /// No description provided for @language.
@@ -555,6 +555,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Send SOS Now'**
   String get sendSOSButton;
+
+  /// No description provided for @autoSendSOSIn5Seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto record and send SOS in 5 seconds if not cancelled.'**
+  String get autoSendSOSIn5Seconds;
 
   /// No description provided for @autoWarning.
   ///

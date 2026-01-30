@@ -1,7 +1,7 @@
 {
   "@@locale": "vi",
   
-  "appTitle": "FPT Guard",
+  "appTitle": "SAFE GUARD",
   "@appTitle": {
     "description": "Tiêu đề ứng dụng"
   },
@@ -71,7 +71,7 @@
   "organization": "Đơn vị",
   "organizationName": "FPT University Cần Thơ",
   "application": "Ứng dụng",
-  "appName": "FPT Guard 2.0",
+  "appName": "SAFE GUARD",
   
   "language": "Ngôn ngữ",
   "selectLanguage": "Chọn ngôn ngữ",
@@ -104,6 +104,7 @@
   "shakeDetected": "Phát hiện rung lắc!",
   "sendSOSNow": "Gửi cảnh báo SOS khẩn cấp ngay lập tức?\n(Không cần chụp ảnh)",
   "sendSOSButton": "Gửi SOS Ngay",
+  "autoSendSOSIn5Seconds": "Tự động ghi âm và gửi SOS sau 5 giây nếu không hủy.",
   "autoWarning": "⚠️ CẢNH BÁO TỰ ĐỘNG: Phát hiện rung lắc khẩn cấp từ thiết bị!",
   "sosSentSuccess": "✅ Đã gửi cảnh báo SOS đến {count} email!",
   "@sosSentSuccess": {

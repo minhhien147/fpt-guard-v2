@@ -1,5 +1,5 @@
 name: fpt_guard_v2
-description: FPT Guard 2.0 - Ứng dụng bảo vệ sinh viên FPT (Mobile Version)
+description: SAFE GUARD - Ứng dụng bảo vệ an toàn (Mobile Version)
 version: 2.0.0+1
 
 environment:
@@ -44,6 +44,12 @@ dependencies:
   
   # Shake Detection
   shake: ^3.0.0
+  
+  # Volume Button Detection
+  volume_controller: ^2.0.7
+  
+  # Audio Recording
+  record: ^6.1.2
   
   # Camera & Image
   image_picker: ^1.0.7

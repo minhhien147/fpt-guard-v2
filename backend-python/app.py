@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, send_file
 from flask_cors import CORS
 import pytz
 
@@ -80,12 +80,14 @@ def home():
                 "/api/auth/logout": "Đăng xuất (POST, requires auth)",
                 "/api/auth/refresh": "Refresh token (POST)",
                 "/api/auth/me": "Thông tin user hiện tại (GET, requires auth)",
-                "/api/auth/update": "Cập nhật profile (PUT, requires auth)"
+                "/api/auth/update": "Cập nhật profile (PUT, requires auth)",
+                "/api/recover-admin": "Mở khóa admin khi khóa nhầm (POST, body: recovery_key)"
             },
             "sos": {
                 "/api/sos": "Tạo báo cáo SOS (POST, requires auth)"
             },
             "admin": {
+                "/api/admin/backup": "Tải file database backup (GET, admin only)",
                 "/api/admin/users": "Danh sách users (GET, admin only)",
                 "/api/admin/users/<user_id>": "Chi tiết user (GET/PUT, admin only)",
                 "/api/admin/statistics": "Thống kê hệ thống (GET, admin only)",
@@ -541,6 +543,43 @@ def login():
         }), 500
 
 
+@app.route('/api/recover-admin', methods=['POST'])
+def recover_admin():
+    """
+    Mở khóa tài khoản admin khi bị khóa nhầm.
+    Cần set biến môi trường ADMIN_RECOVERY_KEY (và tùy chọn ADMIN_EMAIL).
+    Body: { "recovery_key": "your_secret" }
+    """
+    try:
+        data = request.get_json() or {}
+        recovery_key = data.get('recovery_key') or request.args.get('recovery_key')
+        expected = os.environ.get('ADMIN_RECOVERY_KEY')
+        if not expected or not recovery_key or recovery_key != expected:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or missing recovery key'
+            }), 403
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@fptguard.com')
+        user = db.get_user_by_email(admin_email)
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'Admin user not found'
+            }), 404
+        db.update_user(user['id'], is_active=1)
+        logger.info(f"Admin account {admin_email} unlocked via recovery")
+        return jsonify({
+            'success': True,
+            'message': 'Admin account has been unlocked. You can log in again.'
+        })
+    except Exception as e:
+        logger.error(f"Error recovering admin: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/auth/logout', methods=['POST'])
 @require_auth
 def logout():
@@ -584,9 +623,15 @@ def refresh_token():
                 'error': 'Refresh token is required'
             }), 400
         
-        session = db.refresh_session(refresh_token)
+        new_session, error_code = db.refresh_session(refresh_token)
         
-        if not session:
+        if error_code == 'account_disabled':
+            return jsonify({
+                'success': False,
+                'error': 'Account is disabled'
+            }), 403
+        
+        if not new_session:
             return jsonify({
                 'success': False,
                 'error': 'Invalid refresh token'
@@ -594,7 +639,7 @@ def refresh_token():
         
         return jsonify({
             'success': True,
-            'data': session
+            'data': new_session
         })
         
     except Exception as e:
@@ -682,6 +727,30 @@ def update_profile():
 # ============================================================================
 # ADMIN ENDPOINTS
 # ============================================================================
+
+@app.route('/api/admin/backup', methods=['GET'])
+@require_admin
+def admin_backup_db():
+    """
+    Tải file database (backup) - Admin only.
+    GET /api/admin/backup
+    Header: Authorization: Bearer <admin_token>
+    """
+    try:
+        db_path = db.db_path
+        if not os.path.isfile(db_path):
+            return jsonify({'success': False, 'error': 'Database file not found'}), 404
+        filename = f"users_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        return send_file(
+            db_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/x-sqlite3'
+        )
+    except Exception as e:
+        logger.error(f"Error backing up database: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/admin/users', methods=['GET'])
 @require_admin
@@ -1025,9 +1094,10 @@ def main():
     Path(config.DATA_DIR).mkdir(parents=True, exist_ok=True)
     Path(config.LOGS_DIR).mkdir(parents=True, exist_ok=True)
     
-    # Khởi động scheduler
-    logger.info("\nKhởi động scheduler...")
-    scheduler.start(immediate=True)
+    # Khởi động scheduler (disabled on Railway - no Chrome browser)
+    logger.info("\nScheduler: DISABLED (Railway không hỗ trợ Chrome/Selenium)")
+    logger.info("  → Dữ liệu có thể load từ file tĩnh hoặc cập nhật manual qua /api/admin/update")
+    # scheduler.start(immediate=False)  # Tạm disable trên Railway
     
     # Lấy port từ environment variable (cho cloud platforms) hoặc dùng config
     port = int(os.environ.get('PORT', config.API_PORT))

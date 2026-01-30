@@ -1,4 +1,4 @@
-# 🛡️ FPT Guard 2.0
+# 🛡️ SAFE GUARD
 
 **Ứng dụng Bảo vệ Sinh viên FPT University Cần Thơ**
 

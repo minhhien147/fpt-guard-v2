@@ -1,7 +1,7 @@
 {
   "@@locale": "ja",
   
-  "appTitle": "FPT Guard",
+  "appTitle": "SAFE GUARD",
   "@appTitle": {
     "description": "アプリケーションタイトル"
   },
@@ -71,7 +71,7 @@
   "organization": "組織",
   "organizationName": "FPT大学カントー",
   "application": "アプリケーション",
-  "appName": "FPT Guard 2.0",
+  "appName": "SAFE GUARD",
   
   "language": "言語",
   "selectLanguage": "言語を選択",
@@ -104,6 +104,7 @@
   "shakeDetected": "振動を検知！",
   "sendSOSNow": "緊急SOSアラートをすぐに送信しますか？\n（写真は不要）",
   "sendSOSButton": "今すぐSOSを送信",
+  "autoSendSOSIn5Seconds": "キャンセルしない場合、5秒後に自動で録音してSOSを送信します。",
   "autoWarning": "⚠️ 自動警告: デバイスから緊急振動が検出されました！",
   "sosSentSuccess": "✅ SOSアラートが{count}通のメールに送信されました！",
   "@sosSentSuccess": {

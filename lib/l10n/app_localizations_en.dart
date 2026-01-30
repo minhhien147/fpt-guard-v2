@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'FPT Guard';
+  String get appTitle => 'SAFE GUARD';
 
   @override
   String get hello => 'Hello';
@@ -152,7 +152,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get application => 'Application';
 
   @override
-  String get appName => 'FPT Guard 2.0';
+  String get appName => 'SAFE GUARD';
 
   @override
   String get language => 'Language';
@@ -239,6 +239,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sendSOSButton => 'Send SOS Now';
+
+  @override
+  String get autoSendSOSIn5Seconds =>
+      'Auto record and send SOS in 5 seconds if not cancelled.';
 
   @override
   String get autoWarning =>

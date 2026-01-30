@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
   
-  "appTitle": "FPT Guard",
+  "appTitle": "SAFE GUARD",
   "@appTitle": {
     "description": "Application title"
   },
@@ -71,7 +71,7 @@
   "organization": "Organization",
   "organizationName": "FPT University Can Tho",
   "application": "Application",
-  "appName": "FPT Guard 2.0",
+  "appName": "SAFE GUARD",
   
   "language": "Language",
   "selectLanguage": "Select Language",
@@ -104,6 +104,7 @@
   "shakeDetected": "Shake Detected!",
   "sendSOSNow": "Send SOS emergency alert immediately?\n(No photo needed)",
   "sendSOSButton": "Send SOS Now",
+  "autoSendSOSIn5Seconds": "Auto record and send SOS in 5 seconds if not cancelled.",
   "autoWarning": "⚠️ AUTO WARNING: Emergency shake detected from device!",
   "sosSentSuccess": "✅ SOS alert sent to {count} email(s)!",
   "@sosSentSuccess": {

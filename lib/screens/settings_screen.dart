@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/user_provider.dart';
 import '../providers/locale_provider.dart';
 import '../models/user_model.dart';
 import '../widgets/custom_drawer.dart';
 import '../services/auth_service.dart';
+import '../services/foreground_service_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,11 +24,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
+  bool _backgroundEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadBackgroundSetting();
   }
 
   void _loadUserData() {
@@ -38,6 +42,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _phoneController.text = user.phone;
       _emailController.text = user.email;
     }
+  }
+
+  Future<void> _loadBackgroundSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('background_protection_enabled') ?? true;
+    if (mounted) {
+      setState(() {
+        _backgroundEnabled = enabled;
+      });
+    }
+  }
+
+  Future<void> _toggleBackgroundProtection(bool value) async {
+    setState(() {
+      _backgroundEnabled = value;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('background_protection_enabled', value);
+
+    if (value) {
+      await ForegroundServiceController.start();
+    } else {
+      await ForegroundServiceController.stop();
+    }
+
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value
+              ? 'Đã bật chế độ chạy nền bảo vệ 24/7'
+              : 'Đã tắt chế độ chạy nền',
+        ),
+        backgroundColor: value ? Colors.green : Colors.orange,
+      ),
+    );
   }
 
   Future<void> _saveUser() async {
@@ -201,6 +243,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: Text(localeProvider.getLanguageName(localeProvider.locale.languageCode)),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () => _showLanguageDialog(context, localeProvider),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Background protection toggle
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bảo vệ chạy nền',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Giữ SAFE GUARD hoạt động khi thu nhỏ ứng dụng để hỗ trợ SOS và vị trí khẩn cấp.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Bật chạy nền (Foreground Service)'),
+                        subtitle: Text(
+                          _backgroundEnabled
+                              ? 'Đang chạy nền'
+                              : 'Đã tắt, chỉ hoạt động khi mở app',
+                          style: TextStyle(
+                            color: _backgroundEnabled
+                                ? Colors.green[700]
+                                : Colors.grey[600],
+                          ),
+                        ),
+                        value: _backgroundEnabled,
+                        onChanged: _toggleBackgroundProtection,
                       ),
                     ],
                   ),

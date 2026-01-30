@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service để gọi API mực nước sông Mekong từ Python backend
 class WaterLevelService {
   static final Dio _dio = Dio();
   
   // Base URL của Python Flask API trên Railway
-  static const String baseUrl = 'https://web-production-7cfe9.up.railway.app/api';
+  static String get baseUrl => '${dotenv.env['API_BASE_URL'] ?? 'https://web-production-dd806.up.railway.app'}/api';
   
   /// Lấy danh sách tất cả các trạm quan trắc
   static Future<Map<String, dynamic>?> getAllStations() async {

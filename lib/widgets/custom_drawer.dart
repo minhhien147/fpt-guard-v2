@@ -107,7 +107,7 @@ class CustomDrawer extends StatelessWidget {
   void _showAboutDialog(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: 'FPT Guard 2.0',
+      applicationName: 'SAFE GUARD',
       applicationVersion: '2.0.0',
       applicationIcon: Container(
         width: 60,

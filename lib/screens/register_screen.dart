@@ -131,7 +131,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Tạo tài khoản mới để sử dụng FPT Guard',
+                        'Tạo tài khoản mới để sử dụng SAFE GUARD',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade600,
                         ),

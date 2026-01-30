@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/news_model.dart';
 
 class ApiService {
   static final Dio _dio = Dio();
   
   // Base URL cho backend Flask trên Railway
-  static const String baseUrl = 'https://web-production-dd806.up.railway.app/api';
+  static String get baseUrl => '${dotenv.env['API_BASE_URL'] ?? 'https://web-production-dd806.up.railway.app'}/api';
 
   // Lấy tin tức
   static Future<List<NewsModel>> getNews() async {
