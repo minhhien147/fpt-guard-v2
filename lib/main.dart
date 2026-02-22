@@ -16,6 +16,7 @@ import 'screens/news_screen.dart';
 import 'screens/tide_screen.dart';
 import 'screens/sos_form_screen.dart';
 import 'screens/group_login_screen.dart';
+import 'screens/verify_email_screen.dart';
 // import 'screens/water_level_screen.dart'; // ĐÃ ẨN - uncomment để bật lại
 import 'providers/user_provider.dart';
 import 'providers/location_provider.dart';
@@ -153,6 +154,7 @@ class MyApp extends StatelessWidget {
               '/tide': (context) => const TideScreen(),
               '/sos-form': (context) => const SOSFormScreen(),
               '/group-login': (context) => const GroupLoginScreen(),
+              // VerifyEmailScreen needs email arg → pushed via MaterialPageRoute, not named route
               // '/water-level': (context) => const WaterLevelScreen(), // ĐÃ ẨN - uncomment để bật lại
             },
           );

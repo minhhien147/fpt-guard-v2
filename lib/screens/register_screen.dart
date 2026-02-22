@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
-import '../providers/user_provider.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -54,19 +53,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = false);
 
     if (result['success']) {
-      // Update user provider
       if (mounted) {
-        await Provider.of<UserProvider>(context, listen: false).loadUser();
-        
-        // Show success message and navigate
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đăng ký thành công!'),
-            backgroundColor: Colors.green,
+        // Navigate to email verification screen
+        final email = _emailController.text.trim();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => VerifyEmailScreen(email: email),
           ),
         );
-        
-        Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
       setState(() {

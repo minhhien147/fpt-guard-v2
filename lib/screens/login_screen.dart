@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../providers/user_provider.dart';
 import 'register_screen.dart';
 import 'group_login_screen.dart';
+import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,12 +44,19 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (result['success']) {
-      // Update user provider
       if (mounted) {
         await Provider.of<UserProvider>(context, listen: false).loadUser();
-        
-        // Navigate to home
         Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } else if (result['requires_verification'] == true) {
+      // Email not verified — go to OTP screen
+      if (mounted) {
+        final email = result['email'] ?? _emailController.text.trim();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => VerifyEmailScreen(email: email),
+          ),
+        );
       }
     } else {
       setState(() {

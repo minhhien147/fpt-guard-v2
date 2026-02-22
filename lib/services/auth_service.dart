@@ -95,14 +95,19 @@ class AuthService {
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 200 && data['success']) {
-        // Save tokens
         await _saveAuthData(
           data['data']['token'],
           data['data']['refresh_token'],
           data['data']['user'],
         );
-        
         return {'success': true, 'user': _currentUser};
+      } else if (response.statusCode == 403 && data['requires_verification'] == true) {
+        return {
+          'success': false,
+          'requires_verification': true,
+          'email': data['email'] ?? '',
+          'error': data['error'] ?? 'Email chưa xác thực',
+        };
       } else {
         return {'success': false, 'error': data['error'] ?? 'Đăng nhập thất bại'};
       }
@@ -110,7 +115,51 @@ class AuthService {
       return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
     }
   }
-  
+
+  // Verify email with OTP
+  Future<Map<String, dynamic>> verifyEmail({
+    required String email,
+    required String otp,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/verify-email'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'otp': otp}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success']) {
+        await _saveAuthData(
+          data['data']['token'],
+          data['data']['refresh_token'],
+          data['data']['user'],
+        );
+        return {'success': true};
+      }
+      return {'success': false, 'error': data['error'] ?? 'Xác thực thất bại'};
+    } catch (e) {
+      return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
+  // Resend OTP
+  Future<Map<String, dynamic>> resendOtp({required String email}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/resend-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success']) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'error': data['error'] ?? 'Gửi lại thất bại'};
+    } catch (e) {
+      return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
   // Group code login
   Future<Map<String, dynamic>> groupLogin({
     required String code,
