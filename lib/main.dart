@@ -25,6 +25,7 @@ import 'providers/contacts_provider.dart';
 import 'providers/locale_provider.dart';
 import 'services/database_service.dart';
 import 'services/foreground_service_controller.dart';
+import 'dart:async';
 import 'services/auth_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -61,9 +62,20 @@ void main() async {
   }
 
   // Khi admin khóa tài khoản (401/403), app tự logout và chuyển về màn login
-  AuthService().onUnauthorized = () {
+  void forceLogout() {
+    AuthService().logout();
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
-  };
+  }
+
+  AuthService().onUnauthorized = forceLogout;
+
+  // Polling mỗi 30 giây: nếu đang đăng nhập mà token bị thu hồi/tài khoản bị khóa → tự logout
+  Timer.periodic(const Duration(seconds: 30), (_) async {
+    final auth = AuthService();
+    if (!auth.isLoggedIn) return;
+    final ok = await auth.loadCurrentUser();
+    if (!ok) forceLogout();
+  });
 
   runApp(MyApp(localeProvider: localeProvider));
 }
