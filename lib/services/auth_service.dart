@@ -61,12 +61,12 @@ class AuthService {
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 201 && data['success']) {
-        // Backend now requires email verification — no token returned yet
-        return {
-          'success': true,
-          'requires_verification': data['data']['requires_verification'] ?? false,
-          'email': email,
-        };
+        await _saveAuthData(
+          data['data']['token'],
+          data['data']['refresh_token'],
+          data['data']['user'],
+        );
+        return {'success': true, 'user': _currentUser};
       } else {
         return {'success': false, 'error': data['error'] ?? 'Đăng ký thất bại'};
       }

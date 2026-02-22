@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -54,13 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (result['success']) {
       if (mounted) {
-        // Navigate to email verification screen
-        final email = _emailController.text.trim();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => VerifyEmailScreen(email: email),
-          ),
-        );
+        Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
       setState(() {
