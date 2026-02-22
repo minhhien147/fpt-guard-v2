@@ -115,22 +115,25 @@ class _SOSButtonState extends State<SOSButton>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
             decoration: BoxDecoration(
-              color: Colors.orange[50],
+              color: const Color(0xFF00B4D8).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFF00B4D8).withOpacity(0.3),
+              ),
             ),
             child: const Column(
               children: [
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    Icon(Icons.info_outline, color: Color(0xFF0077B6), size: 20),
                     SizedBox(width: 8),
                     Text(
                       'Nhấn để gửi cảnh báo khẩn cấp',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange,
+                        color: Color(0xFF0077B6),
                       ),
                     ),
                   ],

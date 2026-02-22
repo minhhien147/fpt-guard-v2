@@ -77,6 +77,7 @@ def home():
             "authentication": {
                 "/api/auth/register": "Đăng ký tài khoản (POST)",
                 "/api/auth/login": "Đăng nhập (POST)",
+                "/api/auth/group-login": "Đăng nhập bằng mã nhóm (POST, body: code + nickname)",
                 "/api/auth/logout": "Đăng xuất (POST, requires auth)",
                 "/api/auth/refresh": "Refresh token (POST)",
                 "/api/auth/me": "Thông tin user hiện tại (GET, requires auth)",
@@ -93,6 +94,8 @@ def home():
                 "/api/admin/statistics": "Thống kê hệ thống (GET, admin only)",
                 "/api/admin/sos": "Danh sách SOS reports (GET, admin only)",
                 "/api/admin/sos/<report_id>": "Cập nhật SOS (PUT, admin only)",
+                "/api/admin/group-codes": "Quản lý mã nhóm (GET/POST, admin only)",
+                "/api/admin/group-codes/<id>": "Cập nhật / xóa mã nhóm (PUT/DELETE, admin only)",
                 "/admin": "Admin Dashboard (Web UI)"
             },
             "tracking": {
@@ -543,6 +546,49 @@ def login():
         }), 500
 
 
+@app.route('/api/auth/group-login', methods=['POST'])
+def group_login():
+    """
+    Đăng nhập bằng mã nhóm (không cần email/password cá nhân).
+
+    Body: {
+        "code": "FPT2024",
+        "nickname": "Nguyen Van A"
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        code = (data.get('code') or '').strip()
+        nickname = (data.get('nickname') or '').strip()
+
+        if not code or not nickname:
+            return jsonify({'success': False, 'error': 'code và nickname là bắt buộc'}), 400
+        if len(nickname) < 2:
+            return jsonify({'success': False, 'error': 'Tên hiển thị phải có ít nhất 2 ký tự'}), 400
+
+        user = db.group_login(code, nickname)
+
+        device_info = json_module.dumps(get_device_info())
+        session = db.create_session(user['id'], device_info, get_client_ip())
+        db.log_activity(user['id'], 'group_login', {'code': code}, get_client_ip())
+
+        user.pop('password_hash', None)
+        return jsonify({
+            'success': True,
+            'data': {
+                'user': user,
+                'token': session['token'],
+                'refresh_token': session['refresh_token'],
+                'expires_at': session['expires_at'],
+            }
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error during group login: {e}")
+        return jsonify({'success': False, 'error': 'Đăng nhập thất bại'}), 500
+
+
 @app.route('/api/recover-admin', methods=['POST'])
 def recover_admin():
     """
@@ -727,6 +773,83 @@ def update_profile():
 # ============================================================================
 # ADMIN ENDPOINTS
 # ============================================================================
+
+@app.route('/api/admin/group-codes', methods=['GET'])
+@require_admin
+def admin_list_group_codes():
+    """Danh sách tất cả mã nhóm (Admin only)"""
+    try:
+        codes = db.get_all_group_codes()
+        return jsonify({'success': True, 'data': codes})
+    except Exception as e:
+        logger.error(f"Error listing group codes: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/group-codes', methods=['POST'])
+@require_admin
+def admin_create_group_code():
+    """
+    Tạo mã nhóm mới (Admin only).
+
+    Body: {
+        "code": "FPT2024",
+        "name": "Lớp SE1820",
+        "description": "...",        // optional
+        "max_members": 50,            // optional, null = unlimited
+        "expires_at": "2025-12-31"    // optional ISO date
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        code = (data.get('code') or '').strip()
+        name = (data.get('name') or '').strip()
+        if not code or not name:
+            return jsonify({'success': False, 'error': 'code và name là bắt buộc'}), 400
+
+        group = db.create_group_code(
+            code=code,
+            name=name,
+            description=data.get('description'),
+            created_by=request.user_id,
+            max_members=data.get('max_members'),
+            expires_at=data.get('expires_at'),
+        )
+        db.log_activity(request.user_id, 'group_code_created', {'code': code}, get_client_ip())
+        return jsonify({'success': True, 'data': group}), 201
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error creating group code: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/group-codes/<int:group_id>', methods=['PUT'])
+@require_admin
+def admin_update_group_code(group_id):
+    """Cập nhật mã nhóm (Admin only)"""
+    try:
+        data = request.get_json() or {}
+        group = db.update_group_code(group_id, **data)
+        if not group:
+            return jsonify({'success': False, 'error': 'Không tìm thấy mã nhóm'}), 404
+        return jsonify({'success': True, 'data': group})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/group-codes/<int:group_id>', methods=['DELETE'])
+@require_admin
+def admin_delete_group_code(group_id):
+    """Xóa mã nhóm (Admin only)"""
+    try:
+        db.delete_group_code(group_id)
+        db.log_activity(request.user_id, 'group_code_deleted',
+                       {'group_id': group_id}, get_client_ip())
+        return jsonify({'success': True, 'message': 'Đã xóa mã nhóm'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/admin/backup', methods=['GET'])
 @require_admin

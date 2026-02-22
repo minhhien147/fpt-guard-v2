@@ -24,7 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
-  bool _backgroundEnabled = true;
+  bool _backgroundEnabled = false;
 
   @override
   void initState() {
@@ -46,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadBackgroundSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('background_protection_enabled') ?? true;
+    final enabled = prefs.getBool('background_protection_enabled') ?? false;
     if (mounted) {
       setState(() {
         _backgroundEnabled = enabled;
@@ -77,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ? 'Đã bật chế độ chạy nền bảo vệ 24/7'
               : 'Đã tắt chế độ chạy nền',
         ),
-        backgroundColor: value ? Colors.green : Colors.orange,
+        backgroundColor: value ? Colors.green : Colors.grey[700],
       ),
     );
   }
@@ -209,14 +209,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Container(
                   width: 100,
                   height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.orange[100],
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFCAF0F8),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.person,
                     size: 50,
-                    color: Colors.orange[700],
+                    color: Color(0xFF0077B6),
                   ),
                 ),
               ),
@@ -387,7 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: _isLoading ? null : _saveUser,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  backgroundColor: Colors.orange,
+                  backgroundColor: const Color(0xFF0077B6),
                   foregroundColor: Colors.white,
                 ),
                 child: _isLoading

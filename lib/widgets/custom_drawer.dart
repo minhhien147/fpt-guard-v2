@@ -16,11 +16,11 @@ class CustomDrawer extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.orange[700]!,
-                  Colors.orange[500]!,
+                  Color(0xFF03045E),
+                  Color(0xFF0077B6),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -30,10 +30,24 @@ class CustomDrawer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  backgroundImage: AssetImage('assets/images/app_icon.jpg'),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF03045E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF00B4D8).withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/images/app_icon.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -113,13 +127,15 @@ class CustomDrawer extends StatelessWidget {
         width: 60,
         height: 60,
         decoration: BoxDecoration(
-          color: Colors.orange,
+          color: const Color(0xFF03045E),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
-          Icons.shield,
-          size: 30,
-          color: Colors.white,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.asset(
+            'assets/images/app_icon.png',
+            fit: BoxFit.contain,
+          ),
         ),
       ),
       children: [
@@ -151,7 +167,7 @@ class _DrawerItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: Colors.orange[700]),
+      leading: Icon(icon, color: const Color(0xFF0077B6)),
       title: Text(title),
       onTap: onTap,
     );

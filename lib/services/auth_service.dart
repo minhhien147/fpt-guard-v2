@@ -111,6 +111,35 @@ class AuthService {
     }
   }
   
+  // Group code login
+  Future<Map<String, dynamic>> groupLogin({
+    required String code,
+    required String nickname,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/group-login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code, 'nickname': nickname}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success']) {
+        await _saveAuthData(
+          data['data']['token'],
+          data['data']['refresh_token'],
+          data['data']['user'],
+        );
+        return {'success': true, 'user': _currentUser};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'Đăng nhập thất bại'};
+      }
+    } catch (e) {
+      return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
   // Logout
   Future<void> logout() async {
     try {

@@ -79,13 +79,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Colors.orange.shade400,
-              Colors.deepOrange.shade600,
+              Color(0xFF03045E),
+              Color(0xFF023E8A),
+              Color(0xFF0077B6),
             ],
           ),
         ),
@@ -112,21 +113,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ),
-                      
+
                       // Logo
-                      Icon(
-                        Icons.shield,
-                        size: 60,
-                        color: Colors.orange.shade600,
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF03045E),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00B4D8).withOpacity(0.3),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.asset(
+                            'assets/images/app_icon.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Title
                       Text(
                         'Đăng ký tài khoản',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade600,
+                          color: const Color(0xFF0077B6),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -324,7 +342,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _handleRegister,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange.shade600,
+                            backgroundColor: const Color(0xFF0077B6),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../providers/user_provider.dart';
 import 'register_screen.dart';
+import 'group_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -60,13 +61,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Colors.orange.shade400,
-              Colors.deepOrange.shade600,
+              Color(0xFF03045E),
+              Color(0xFF023E8A),
+              Color(0xFF0077B6),
             ],
           ),
         ),
@@ -87,19 +89,37 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Logo
-                        Icon(
-                          Icons.shield,
-                          size: 80,
-                          color: Colors.orange.shade600,
+                        Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF03045E),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF00B4D8).withOpacity(0.3),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/images/app_icon.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        
+
                         // Title
                         Text(
                           'SAFE GUARD',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade600,
+                            color: const Color(0xFF0077B6),
+                            letterSpacing: 2,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -197,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange.shade600,
+                              backgroundColor: const Color(0xFF0077B6),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -223,6 +243,48 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
                         
+                        // Group code login button
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const GroupLoginScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.group_outlined),
+                            label: const Text(
+                              'Đăng nhập bằng mã nhóm',
+                              style: TextStyle(fontSize: 15),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0077B6),
+                              side: const BorderSide(color: Color(0xFF0077B6)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Divider
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: Colors.grey.shade300)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('hoặc',
+                                  style: TextStyle(color: Colors.grey.shade500)),
+                            ),
+                            Expanded(child: Divider(color: Colors.grey.shade300)),
+                          ],
+                        ),
+
                         // Register link
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

@@ -59,68 +59,93 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.orange[700],
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Logo
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(60),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF03045E),
+              Color(0xFF023E8A),
+              Color(0xFF0077B6),
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF03045E),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00B4D8).withOpacity(0.5),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: const Color(0xFF00B4D8).withOpacity(0.4),
+                    width: 1.5,
                   ),
-                ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(26),
+                  child: Image.asset(
+                    'assets/images/app_icon.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
-              child: Icon(
-                Icons.shield,
-                size: 60,
-                color: Colors.orange[700],
+              const SizedBox(height: 32),
+
+              // App name
+              const Text(
+                'SAFE GUARD',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
               ),
-            ),
-            const SizedBox(height: 30),
-            
-            // App name
-            const Text(
-              'SAFE GUARD',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+              const SizedBox(height: 8),
+
+              const Text(
+                'Version 2.0',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF90E0EF),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            
-            const Text(
-              'Version 2.0',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
+              const SizedBox(height: 56),
+
+              // Loading indicator
+              const SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00B4D8)),
+                  strokeWidth: 3,
+                ),
               ),
-            ),
-            const SizedBox(height: 50),
-            
-            // Loading indicator
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-            const SizedBox(height: 20),
-            
-            const Text(
-              'Đang khởi động...',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
+              const SizedBox(height: 20),
+
+              const Text(
+                'Đang khởi động...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF90E0EF),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
