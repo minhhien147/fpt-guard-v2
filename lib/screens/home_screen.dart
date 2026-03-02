@@ -847,10 +847,16 @@ class _HomeScreenState extends State<HomeScreen> {
               // const SizedBox(height: 20),
 
               // SOS Button
-              SOSButton(
-                onPressed: _isSendingSOS ? null : _handleSOS,
-                isLoading: _isSendingSOS,
-              ),
+              Builder(builder: (context) {
+                final user = AuthService().currentUser;
+                return SOSButton(
+                  onPressed: _isSendingSOS ? null : _handleSOS,
+                  isLoading: _isSendingSOS,
+                  isPro: user?.isPro ?? false,
+                  sosUsed: user?.sosCount ?? 0,
+                  sosLimit: 10,
+                );
+              }),
               const SizedBox(height: 30),
 
               // Quick actions

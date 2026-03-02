@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/user_model.dart';
 
 class AuthService {
@@ -344,6 +345,12 @@ class AuthService {
     await prefs.setString('auth_token', token);
     await prefs.setString('refresh_token', refreshToken);
     await prefs.setString('user_data', jsonEncode(userData));
+
+    // Upload FCM token to server for push notifications
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) await uploadFcmToken(fcmToken);
+    } catch (_) {}
   }
   
   Future<void> _clearAuthData() async {
@@ -356,7 +363,19 @@ class AuthService {
     await prefs.remove('refresh_token');
     await prefs.remove('user_data');
   }
-  
+
+  /// Gửi FCM token lên server (gọi sau khi login/register thành công)
+  Future<void> uploadFcmToken(String fcmToken) async {
+    if (_token == null) return;
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/api/auth/fcm-token'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_token'},
+        body: jsonEncode({'token': fcmToken}),
+      );
+    } catch (_) {}
+  }
+
   // Refresh token
   Future<bool> refreshAccessToken() async {
     try {

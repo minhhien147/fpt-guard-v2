@@ -55,10 +55,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _toggleBackgroundProtection(bool value) async {
-    setState(() {
-      _backgroundEnabled = value;
-    });
+    // Kiểm tra Pro
+    final user = AuthService().currentUser;
+    if (value && user != null && !user.isPro) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Tính năng Pro'),
+          content: const Text(
+            'Chạy nền là tính năng dành cho tài khoản Pro.\n\nLiên hệ admin để được nâng cấp.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
+    setState(() { _backgroundEnabled = value; });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('background_protection_enabled', value);
 
@@ -69,13 +88,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          value
-              ? 'Đã bật chế độ chạy nền bảo vệ 24/7'
-              : 'Đã tắt chế độ chạy nền',
+          value ? 'Đã bật chế độ chạy nền bảo vệ 24/7' : 'Đã tắt chế độ chạy nền',
         ),
         backgroundColor: value ? Colors.green : Colors.grey[700],
       ),

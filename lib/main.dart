@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'l10n/app_localizations.dart';
 
 import 'screens/splash_screen.dart';
@@ -42,6 +44,20 @@ void main() async {
     dotenv.env['API_BASE_URL'] = 'https://web-production-dd806.up.railway.app';
   }
   
+  // Initialize Firebase (skip if google-services.json not configured yet)
+  try {
+    await Firebase.initializeApp();
+    final messaging = FirebaseMessaging.instance;
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    final fcmToken = await messaging.getToken();
+    if (fcmToken != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fcm_token', fcmToken);
+    }
+  } catch (e) {
+    debugPrint('Firebase init skipped: $e');
+  }
+
   // Initialize database
   await DatabaseService.instance.database;
   

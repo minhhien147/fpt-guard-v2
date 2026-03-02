@@ -5,15 +5,25 @@ class UserModel {
   final String phone;
   final String email;
   final DateTime? createdAt;
+  final bool isPro;
+  final int sosCount;
+  final String role;
 
-  UserModel({
+  const UserModel({
     this.id,
     required this.fullName,
     required this.studentId,
     required this.phone,
     required this.email,
     this.createdAt,
+    this.isPro = false,
+    this.sosCount = 0,
+    this.role = 'user',
   });
+
+  static const int freeSosLimit = 10;
+  int get sosRemaining => isPro ? -1 : (freeSosLimit - sosCount).clamp(0, freeSosLimit);
+  bool get canSendSos => isPro || sosCount < freeSosLimit;
 
   Map<String, dynamic> toMap() {
     return {
@@ -23,6 +33,9 @@ class UserModel {
       'phone': phone,
       'email': email,
       'created_at': createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'is_pro': isPro ? 1 : 0,
+      'sos_count': sosCount,
+      'role': role,
     };
   }
 
@@ -33,9 +46,10 @@ class UserModel {
       studentId: map['student_id'] ?? '',
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
+      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at']) : null,
+      isPro: (map['is_pro'] == true || map['is_pro'] == 1),
+      sosCount: (map['sos_count'] as num?)?.toInt() ?? 0,
+      role: map['role'] ?? 'user',
     );
   }
 
@@ -46,6 +60,9 @@ class UserModel {
     String? phone,
     String? email,
     DateTime? createdAt,
+    bool? isPro,
+    int? sosCount,
+    String? role,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -54,7 +71,9 @@ class UserModel {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       createdAt: createdAt ?? this.createdAt,
+      isPro: isPro ?? this.isPro,
+      sosCount: sosCount ?? this.sosCount,
+      role: role ?? this.role,
     );
   }
 }
-

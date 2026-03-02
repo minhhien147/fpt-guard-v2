@@ -5,11 +5,35 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/contacts_provider.dart';
 import '../models/contact_model.dart';
 import '../widgets/custom_drawer.dart';
+import '../services/auth_service.dart';
 
 class ContactsScreen extends StatelessWidget {
   const ContactsScreen({super.key});
 
+  static const int freeContactLimit = 3;
+
   void _showAddContactDialog(BuildContext context) {
+    // Kiểm tra giới hạn Free
+    final user = AuthService().currentUser;
+    final contacts = context.read<ContactsProvider>().contacts;
+    if (user != null && !user.isPro && contacts.length >= freeContactLimit) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Giới hạn tài khoản Free'),
+          content: Text(
+            'Tài khoản Free chỉ được tối đa $freeContactLimit liên hệ.\n\nNâng cấp Pro để thêm không giới hạn.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
     final emailController = TextEditingController();
