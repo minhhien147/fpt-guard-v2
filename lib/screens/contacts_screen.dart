@@ -15,7 +15,7 @@ class ContactsScreen extends StatelessWidget {
   void _showAddContactDialog(BuildContext context) {
     // Kiểm tra giới hạn Free
     final user = AuthService().currentUser;
-    final contacts = context.read<ContactsProvider>().contacts;
+    final contacts = context.read<ContactsProvider>().personalContacts;
     if (user != null && !user.isPro && contacts.length >= freeContactLimit) {
       showDialog(
         context: context,

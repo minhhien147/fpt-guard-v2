@@ -180,7 +180,7 @@ class _SOSButtonState extends State<SOSButton>
             Text(
               remaining == 0
                   ? 'Hết lượt SOS miễn phí — Nâng cấp Pro'
-                  : 'Còn $remaining/$${widget.sosLimit} lượt SOS miễn phí',
+                  : 'Còn $remaining/${widget.sosLimit} lượt SOS miễn phí',
               style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
             ),
           ],
