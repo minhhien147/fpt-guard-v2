@@ -6,16 +6,18 @@ import os
 import sqlite3
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 from pathlib import Path
 import json
 
 class Database:
     """Database handler for user management"""
     
-    def __init__(self, db_path="data/users.db"):
-        self.db_path = db_path
-        Path(os.path.dirname(db_path)).mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path=None):
+        # DB_PATH env var cho phép trỏ tới Railway Volume (persistent storage)
+        # VD: DB_PATH=/data/users.db  → dữ liệu không mất khi redeploy
+        self.db_path = db_path or os.environ.get('DB_PATH', 'data/users.db')
+        Path(os.path.dirname(self.db_path)).mkdir(parents=True, exist_ok=True)
         self.init_database()
     
     def get_connection(self):
@@ -118,11 +120,68 @@ class Database:
             )
         ''')
 
+        # FCM tokens for push notifications
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS fcm_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_fcm_user ON fcm_tokens(user_id)')
+        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_fcm_token ON fcm_tokens(token)')
+
+        # News articles (RSS crawled)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS news (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                link TEXT UNIQUE NOT NULL,
+                published TEXT,
+                source TEXT,
+                category TEXT,
+                image TEXT,
+                fetched_at TEXT NOT NULL
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_news_published ON news(published DESC)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_news_category ON news(category)')
+
         # Add group_code_id to users (idempotent)
         try:
             cursor.execute('ALTER TABLE users ADD COLUMN group_code_id INTEGER REFERENCES group_codes(id)')
         except Exception:
-            pass  # Column already exists
+            pass
+
+        # Email verification columns (idempotent)
+        for col_def in [
+            'ALTER TABLE users ADD COLUMN is_email_verified INTEGER DEFAULT 0',
+            'ALTER TABLE users ADD COLUMN email_otp TEXT',
+            'ALTER TABLE users ADD COLUMN email_otp_expires_at TEXT',
+        ]:
+            try:
+                cursor.execute(col_def)
+            except Exception:
+                pass
+
+        # Pro plan + SOS count (idempotent)
+        for col_def in [
+            'ALTER TABLE users ADD COLUMN is_pro INTEGER DEFAULT 0',
+            'ALTER TABLE users ADD COLUMN sos_count INTEGER DEFAULT 0',
+            'ALTER TABLE users ADD COLUMN pro_expires_at TEXT',
+        ]:
+            try:
+                cursor.execute(col_def)
+            except Exception:
+                pass
+
+        # Upgrade existing group_members to Pro (migration, no expiry)
+        cursor.execute(
+            "UPDATE users SET is_pro = 1 WHERE role = 'group_member' AND is_pro = 0"
+        )
 
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_group_codes_code ON group_codes(code)')
         
@@ -275,14 +334,16 @@ class Database:
         
         if role:
             cursor.execute('''
-                SELECT id, full_name, student_id, phone, email, role, is_active, created_at, last_login
+                SELECT id, full_name, student_id, phone, email, role, is_active,
+                       is_pro, pro_expires_at, sos_count, created_at, last_login
                 FROM users WHERE role = ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             ''', (role, limit, offset))
         else:
             cursor.execute('''
-                SELECT id, full_name, student_id, phone, email, role, is_active, created_at, last_login
+                SELECT id, full_name, student_id, phone, email, role, is_active,
+                       is_pro, pro_expires_at, sos_count, created_at, last_login
                 FROM users
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -332,14 +393,18 @@ class Database:
     
     def verify_token(self, token):
         """Verify session token. Returns (session_dict, error_code).
-        error_code: None = OK, 'account_disabled' = user bị khóa, None (with session None) = invalid/expired.
+        error_code: None = OK, 'account_disabled' = user bị khóa hoặc group code bị tắt,
+        None (with session None) = invalid/expired.
         """
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT s.*, u.id as user_id, u.email, u.role, u.is_active as user_is_active
+            SELECT s.*, u.id as user_id, u.email, u.role, u.is_active as user_is_active,
+                   u.group_code_id,
+                   gc.is_active as group_is_active
             FROM sessions s
             JOIN users u ON s.user_id = u.id
+            LEFT JOIN group_codes gc ON u.group_code_id = gc.id
             WHERE s.token = ? AND s.is_active = 1
         ''', (token,))
         row = cursor.fetchone()
@@ -349,8 +414,12 @@ class Database:
             return (None, None)
         
         session = dict(row)
-        # User disabled: báo riêng để app hiển thị "Tài khoản đã bị khóa"
+        # User bị khóa trực tiếp
         if not session.get('user_is_active', 1):
+            return (None, 'account_disabled')
+
+        # Group member mà group code bị tắt → coi như bị khóa
+        if session.get('group_code_id') and not session.get('group_is_active', 1):
             return (None, 'account_disabled')
         
         # Check if expired
@@ -375,13 +444,16 @@ class Database:
     
     def refresh_session(self, refresh_token):
         """Refresh session token. Returns (new_session, error_code).
-        error_code: None = OK, 'account_disabled' = user bị khóa."""
+        error_code: None = OK, 'account_disabled' = user bị khóa hoặc group code bị tắt."""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT s.*, u.is_active as user_is_active
+            SELECT s.*, u.is_active as user_is_active,
+                   u.group_code_id,
+                   gc.is_active as group_is_active
             FROM sessions s
             JOIN users u ON s.user_id = u.id
+            LEFT JOIN group_codes gc ON u.group_code_id = gc.id
             WHERE s.refresh_token = ? AND s.is_active = 1
         ''', (refresh_token,))
         row = cursor.fetchone()
@@ -392,6 +464,10 @@ class Database:
         
         session = dict(row)
         if not session.get('user_is_active', 1):
+            conn.close()
+            return (None, 'account_disabled')
+
+        if session.get('group_code_id') and not session.get('group_is_active', 1):
             conn.close()
             return (None, 'account_disabled')
         
@@ -703,15 +779,56 @@ class Database:
             )
         return user
 
+    # -------------------------------------------------------------------------
+    # Email Verification OTP
+    # -------------------------------------------------------------------------
+
+    def generate_email_otp(self, user_id):
+        """Generate a 6-digit OTP, store it (expires in 10 minutes) and return it."""
+        import random
+        otp = f"{random.randint(0, 999999):06d}"
+        expires_at = (datetime.now() + timedelta(minutes=10)).isoformat()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET email_otp = ?, email_otp_expires_at = ? WHERE id = ?',
+            (otp, expires_at, user_id)
+        )
+        conn.commit()
+        conn.close()
+        return otp
+
+    def verify_email_otp(self, email, otp):
+        """Verify OTP for given email. Returns True on success, error string on failure."""
+        user = self.get_user_by_email(email)
+        if not user:
+            return 'Email không tồn tại'
+        if user.get('is_email_verified'):
+            return True  # Already verified
+        if user.get('email_otp') != otp:
+            return 'Mã OTP không đúng'
+        expires_at = user.get('email_otp_expires_at')
+        if not expires_at or datetime.now() > datetime.fromisoformat(expires_at):
+            return 'Mã OTP đã hết hạn (10 phút)'
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET is_email_verified = 1, email_otp = NULL, email_otp_expires_at = NULL WHERE id = ?',
+            (user['id'],)
+        )
+        conn.commit()
+        conn.close()
+        return True
+
     def create_group_member(self, full_name, email, group_code_id):
-        """Create a group-member user (passwordless)"""
+        """Create a group-member user (passwordless). Group members are Pro by default."""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
                 INSERT INTO users (full_name, student_id, phone, email, password_hash,
-                                   role, is_active, group_code_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                                   role, is_active, group_code_id, is_pro, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, ?)
             ''', (full_name, None, '', email, '', 'group_member',
                   group_code_id, datetime.now().isoformat()))
             user_id = cursor.lastrowid
@@ -719,6 +836,189 @@ class Database:
             return self.get_user_by_id(user_id)
         finally:
             conn.close()
+
+
+    # ── Pro plan ─────────────────────────────────────────────────────────────
+
+    FREE_SOS_LIMIT = 10
+
+    def set_pro(self, user_id: int, is_pro: bool, months: int = 1):
+        """Nâng/hạ Pro. Nếu is_pro=True thì set pro_expires_at = now + months tháng.
+        group_member không có expiry (pro_expires_at = NULL).
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        if is_pro:
+            expires_at = (datetime.now() + timedelta(days=30 * months)).isoformat()
+            cursor.execute(
+                'UPDATE users SET is_pro = 1, pro_expires_at = ? WHERE id = ?',
+                (expires_at, user_id)
+            )
+        else:
+            cursor.execute(
+                'UPDATE users SET is_pro = 0, pro_expires_at = NULL WHERE id = ?',
+                (user_id,)
+            )
+        conn.commit()
+        conn.close()
+
+    def expire_pro_accounts(self) -> list:
+        """Hạ tất cả tài khoản Pro đã hết hạn về Free. Trả về list user bị hạ."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute(
+            '''SELECT id, full_name, email FROM users
+               WHERE is_pro = 1 AND pro_expires_at IS NOT NULL AND pro_expires_at <= ?''',
+            (now,)
+        )
+        expired = [dict(r) for r in cursor.fetchall()]
+        if expired:
+            ids = [u['id'] for u in expired]
+            cursor.execute(
+                f"UPDATE users SET is_pro = 0, pro_expires_at = NULL WHERE id IN ({','.join('?'*len(ids))})",
+                ids
+            )
+            conn.commit()
+        conn.close()
+        return expired
+
+    def can_send_sos(self, user_id: int) -> tuple[bool, int, int]:
+        """Returns (allowed, used, limit). limit=-1 means unlimited."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_pro, sos_count FROM users WHERE id = ?', (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return False, 0, self.FREE_SOS_LIMIT
+        if row['is_pro']:
+            return True, row['sos_count'], -1
+        used = row['sos_count'] or 0
+        return used < self.FREE_SOS_LIMIT, used, self.FREE_SOS_LIMIT
+
+    def increment_sos_count(self, user_id: int):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET sos_count = COALESCE(sos_count, 0) + 1 WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
+
+    # ── FCM tokens ───────────────────────────────────────────────────────────
+
+    def save_fcm_token(self, user_id: int, token: str):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT OR REPLACE INTO fcm_tokens (user_id, token, created_at) VALUES (?, ?, ?)',
+            (user_id, token, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+
+    def get_fcm_tokens_for_user(self, user_id: int) -> list:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT token FROM fcm_tokens WHERE user_id = ?', (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [r['token'] for r in rows]
+
+    def get_all_admin_fcm_tokens(self) -> list:
+        """All FCM tokens belonging to admin users (for SOS alerts)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT f.token FROM fcm_tokens f JOIN users u ON f.user_id = u.id WHERE u.role = 'admin'"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [r['token'] for r in rows]
+
+    def delete_fcm_token(self, token: str):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM fcm_tokens WHERE token = ?', (token,))
+        conn.commit()
+        conn.close()
+
+    # ── News (RSS) ────────────────────────────────────────────────────────────
+
+    def save_news_articles(self, articles: list) -> int:
+        """Bulk-insert news articles, skipping duplicates by link. Returns count inserted."""
+        if not articles:
+            return 0
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        inserted = 0
+        for a in articles:
+            try:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO news
+                        (title, description, link, published, source, category, image, fetched_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    a.get('title', ''),
+                    a.get('description', ''),
+                    a.get('link', ''),
+                    a.get('published', ''),
+                    a.get('source', ''),
+                    a.get('category', ''),
+                    a.get('image'),
+                    datetime.now().isoformat(),
+                ))
+                if cursor.rowcount:
+                    inserted += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return inserted
+
+    def get_news(self, limit: int = 20, offset: int = 0, category: str = None) -> tuple:
+        """Return (list_of_articles, total_count) ordered by published desc."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        if category and category != 'Tất cả':
+            cursor.execute(
+                'SELECT * FROM news WHERE category = ? ORDER BY published DESC, fetched_at DESC LIMIT ? OFFSET ?',
+                (category, limit, offset)
+            )
+            cursor2 = conn.cursor()
+            cursor2.execute('SELECT COUNT(*) as cnt FROM news WHERE category = ?', (category,))
+        else:
+            cursor.execute(
+                'SELECT * FROM news ORDER BY published DESC, fetched_at DESC LIMIT ? OFFSET ?',
+                (limit, offset)
+            )
+            cursor2 = conn.cursor()
+            cursor2.execute('SELECT COUNT(*) as cnt FROM news')
+        articles = [dict(r) for r in cursor.fetchall()]
+        total = cursor2.fetchone()['cnt']
+        conn.close()
+        return articles, total
+
+    def get_news_categories(self) -> list:
+        """Return distinct category values that have at least one article."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT DISTINCT category FROM news WHERE category IS NOT NULL AND category != "" ORDER BY category'
+        )
+        cats = [r['category'] for r in cursor.fetchall()]
+        conn.close()
+        return cats
+
+    def cleanup_old_news(self, days: int = 30) -> int:
+        """Delete articles older than `days` days. Returns count deleted."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        cursor.execute('DELETE FROM news WHERE fetched_at < ?', (cutoff,))
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
 
 
 # Global database instance

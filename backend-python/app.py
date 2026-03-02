@@ -19,6 +19,8 @@ from data_processor import WaterLevelProcessor
 import config
 from database import db
 from auth import require_auth, require_admin, get_client_ip, get_device_info
+from email_sender import send_verification_otp, send_resend_otp, send_pro_activated, send_pro_expired
+from push_service import notify_sos, notify_pro_activated, notify_account_locked, send_push
 import json as json_module
 
 # Setup logging
@@ -77,6 +79,8 @@ def home():
             "authentication": {
                 "/api/auth/register": "Đăng ký tài khoản (POST)",
                 "/api/auth/login": "Đăng nhập (POST)",
+                "/api/auth/verify-email": "Xác thực email bằng OTP (POST, body: email + otp)",
+                "/api/auth/resend-otp": "Gửi lại mã OTP (POST, body: email)",
                 "/api/auth/group-login": "Đăng nhập bằng mã nhóm (POST, body: code + nickname)",
                 "/api/auth/logout": "Đăng xuất (POST, requires auth)",
                 "/api/auth/refresh": "Refresh token (POST)",
@@ -100,6 +104,10 @@ def home():
             },
             "tracking": {
                 "/api/activity/track": "Theo dõi hoạt động user (POST, requires auth)"
+            },
+            "news": {
+                "/api/news": "Tin tức an ninh từ RSS (GET, ?limit=20&offset=0&category=...)",
+                "/api/admin/news/refresh": "Crawl RSS ngay lập tức (POST, admin only)"
             }
         },
         "default_admin": {
@@ -447,23 +455,24 @@ def register():
             password=data['password']
         )
         
-        # Create session
-        device_info = json_module.dumps(get_device_info())
-        session = db.create_session(user['id'], device_info, get_client_ip())
-        
         # Log activity
         db.log_activity(user['id'], 'registered', ip_address=get_client_ip())
-        
+
+        # Create session immediately after registration
+        device_info = json_module.dumps(get_device_info())
+        session = db.create_session(user['id'], device_info, get_client_ip())
+
         # Remove sensitive data
         user.pop('password_hash', None)
-        
+
         return jsonify({
             'success': True,
             'data': {
                 'user': user,
                 'token': session['token'],
                 'refresh_token': session['refresh_token'],
-                'expires_at': session['expires_at']
+                'expires_at': session['expires_at'],
+                'message': 'Đăng ký thành công'
             }
         }), 201
         
@@ -517,7 +526,7 @@ def login():
                 'success': False,
                 'error': 'Account is disabled'
             }), 403
-        
+
         # Create session
         device_info = json_module.dumps(get_device_info())
         session = db.create_session(user['id'], device_info, get_client_ip())
@@ -544,6 +553,79 @@ def login():
             'success': False,
             'error': 'Login failed'
         }), 500
+
+
+@app.route('/api/auth/verify-email', methods=['POST'])
+def verify_email():
+    """
+    Xác thực email bằng mã OTP 6 số.
+
+    Body: { "email": "user@example.com", "otp": "123456" }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        otp   = (data.get('otp')   or '').strip()
+
+        if not email or not otp:
+            return jsonify({'success': False, 'error': 'email và otp là bắt buộc'}), 400
+
+        result = db.verify_email_otp(email, otp)
+        if result is not True:
+            return jsonify({'success': False, 'error': result}), 400
+
+        # Create session for auto-login after verification
+        user = db.get_user_by_email(email)
+        user.pop('password_hash', None)
+        device_info = json_module.dumps(get_device_info())
+        session = db.create_session(user['id'], device_info, get_client_ip())
+        db.log_activity(user['id'], 'email_verified', ip_address=get_client_ip())
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'user': user,
+                'token': session['token'],
+                'refresh_token': session['refresh_token'],
+                'expires_at': session['expires_at'],
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error verifying email: {e}')
+        return jsonify({'success': False, 'error': 'Xác thực thất bại'}), 500
+
+
+@app.route('/api/auth/resend-otp', methods=['POST'])
+def resend_otp():
+    """
+    Gửi lại mã OTP.
+
+    Body: { "email": "user@example.com" }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return jsonify({'success': False, 'error': 'email là bắt buộc'}), 400
+
+        user = db.get_user_by_email(email)
+        if not user:
+            return jsonify({'success': False, 'error': 'Email không tồn tại'}), 404
+        if user.get('is_email_verified'):
+            return jsonify({'success': True, 'message': 'Email đã được xác thực'})
+
+        otp = db.generate_email_otp(user['id'])
+        sent, send_err = send_resend_otp(email, user['full_name'], otp)
+
+        return jsonify({
+            'success': True,
+            'email_sent': sent,
+            'email_error': send_err if not sent else None,
+            'message': f'Đã gửi lại mã OTP đến {email}' if sent else f'Không gửi được email: {send_err}',
+        })
+    except Exception as e:
+        logger.error(f'Error resending OTP: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/auth/group-login', methods=['POST'])
@@ -1024,48 +1106,124 @@ def admin_get_statistics():
 @require_auth
 def create_sos():
     """
-    Tạo báo cáo SOS
-    
-    Body: {
-        "latitude": 10.123,
-        "longitude": 105.456,
-        "message": "Need help!"
-    }
+    Tạo báo cáo SOS.
+    Free: tối đa 10 lần. Pro: không giới hạn.
+
+    Body: { "latitude": 10.123, "longitude": 105.456, "message": "Need help!" }
     """
     try:
         data = request.get_json()
-        
         latitude = data.get('latitude')
         longitude = data.get('longitude')
         message = data.get('message', '')
-        
+
         if not latitude or not longitude:
+            return jsonify({'success': False, 'error': 'Location coordinates are required'}), 400
+
+        # Check SOS quota
+        allowed, used, limit = db.can_send_sos(request.user_id)
+        if not allowed:
             return jsonify({
                 'success': False,
-                'error': 'Location coordinates are required'
-            }), 400
-        
+                'error': f'Bạn đã dùng hết {limit} lần SOS miễn phí. Nâng cấp Pro để gửi không giới hạn.',
+                'quota_exceeded': True,
+                'sos_used': used,
+                'sos_limit': limit,
+            }), 403
+
         report_id = db.create_sos_report(
             user_id=request.user_id,
             location_lat=latitude,
             location_lon=longitude,
             message=message
         )
-        
+        db.increment_sos_count(request.user_id)
+
+        # Push notification → all admin devices
+        user = db.get_user_by_id(request.user_id)
+        admin_tokens = db.get_all_admin_fcm_tokens()
+        if admin_tokens and user:
+            location_str = f'{latitude:.5f}, {longitude:.5f}'
+            notify_sos(admin_tokens, user.get('full_name', 'Unknown'), location_str, message)
+
+        _, used_now, _ = db.can_send_sos(request.user_id)
+        remaining = (limit - used_now) if limit != -1 else -1
+
         return jsonify({
             'success': True,
             'data': {
                 'report_id': report_id,
-                'message': 'SOS report created successfully'
+                'message': 'SOS report created successfully',
+                'sos_used': used_now,
+                'sos_remaining': remaining,
             }
         }), 201
-        
+
     except Exception as e:
         logger.error(f"Error creating SOS report: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/fcm-token', methods=['POST'])
+@require_auth
+def save_fcm_token():
+    """Lưu FCM token cho push notification. Body: { "token": "..." }"""
+    try:
+        data = request.get_json() or {}
+        token = (data.get('token') or '').strip()
+        if not token:
+            return jsonify({'success': False, 'error': 'token là bắt buộc'}), 400
+        db.save_fcm_token(request.user_id, token)
+        return jsonify({'success': True, 'message': 'FCM token saved'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/users/<int:user_id>/set-pro', methods=['POST'])
+@require_admin
+def admin_set_pro(user_id):
+    """Nâng/hạ gói Pro cho user (chỉ áp dụng role=user, không áp dụng group_member).
+    Body: { "is_pro": true|false, "months": 1 }
+    """
+    try:
+        data = request.get_json() or {}
+        is_pro = bool(data.get('is_pro', True))
+        months = int(data.get('months', 1))
+
+        user = db.get_user_by_id(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'Không tìm thấy user'}), 404
+
+        db.set_pro(user_id, is_pro, months=months)
+        db.log_activity(request.user_id, 'admin_set_pro',
+                        {'target_user_id': user_id, 'is_pro': is_pro, 'months': months},
+                        get_client_ip())
+
+        if is_pro:
+            # Lấy pro_expires_at vừa set
+            updated_user = db.get_user_by_id(user_id)
+            expires_at = updated_user.get('pro_expires_at', '')
+
+            # Gửi email thông báo (chỉ user thường, không phải group_member)
+            if user.get('role') != 'group_member' and user.get('email'):
+                send_pro_activated(user['email'], user['full_name'], expires_at)
+
+            # Push notification
+            user_tokens = db.get_fcm_tokens_for_user(user_id)
+            if user_tokens:
+                notify_pro_activated(user_tokens)
+
+            return jsonify({
+                'success': True,
+                'message': f'Đã nâng Pro cho {user["full_name"]} đến {expires_at[:10]}',
+                'pro_expires_at': expires_at,
+            })
+        else:
+            return jsonify({'success': True, 'message': f'Đã hạ {user["full_name"]} về Free'})
+
+    except Exception as e:
+        logger.error(f'admin_set_pro error: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/admin/sos', methods=['GET'])
@@ -1185,6 +1343,59 @@ def track_activity():
 # ERROR HANDLERS
 # ============================================================================
 
+# ============================================================================
+# NEWS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/news', methods=['GET'])
+def get_news():
+    """
+    Lấy danh sách tin tức an ninh từ RSS (có phân trang + lọc danh mục).
+    Query params:
+      - limit  (int, default 20)
+      - offset (int, default 0)
+      - category (str, optional – 'Tất cả' or specific category)
+    """
+    try:
+        limit = min(int(request.args.get('limit', 20)), 50)
+        offset = int(request.args.get('offset', 0))
+        category = request.args.get('category', None)
+
+        articles, total = db.get_news(limit=limit, offset=offset, category=category)
+        categories = db.get_news_categories()
+
+        # If DB is empty, trigger a background crawl (non-blocking)
+        if total == 0:
+            import threading
+            t = threading.Thread(target=scheduler.fetch_rss_news, daemon=True)
+            t.start()
+
+        return jsonify({
+            "success": True,
+            "news": articles,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "categories": categories,
+        })
+    except Exception as e:
+        logger.error(f'get_news error: {e}', exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/admin/news/refresh', methods=['POST'])
+@require_admin
+def admin_refresh_news():
+    """Kích hoạt crawl RSS ngay lập tức (admin only)."""
+    try:
+        scheduler.fetch_rss_news()
+        _, total = db.get_news(limit=1, offset=0)
+        return jsonify({"success": True, "message": f"Đã cập nhật tin tức. Tổng: {total} bài."})
+    except Exception as e:
+        logger.error(f'admin_refresh_news error: {e}', exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({
@@ -1221,6 +1432,28 @@ def main():
     logger.info("\nScheduler: DISABLED (Railway không hỗ trợ Chrome/Selenium)")
     logger.info("  → Dữ liệu có thể load từ file tĩnh hoặc cập nhật manual qua /api/admin/update")
     # scheduler.start(immediate=False)  # Tạm disable trên Railway
+
+    # Khởi động RSS news scheduler (không cần Chrome, chỉ cần HTTP)
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler as _BGS
+        from apscheduler.triggers.interval import IntervalTrigger as _IT
+        import pytz as _pytz
+        _news_scheduler = _BGS(timezone=_pytz.timezone(config.TIMEZONE))
+        _news_scheduler.add_job(
+            func=scheduler.fetch_rss_news,
+            trigger=_IT(minutes=30),
+            id='rss_news',
+            name='RSS News Crawler',
+            replace_existing=True,
+        )
+        _news_scheduler.start()
+        logger.info("✓ RSS News scheduler đã khởi động (mỗi 30 phút)")
+        # Crawl ngay lần đầu trong thread riêng (không block startup)
+        import threading
+        threading.Thread(target=scheduler.fetch_rss_news, daemon=True).start()
+        logger.info("  → Đang crawl RSS lần đầu ở background...")
+    except Exception as _e:
+        logger.warning(f"RSS scheduler khởi động thất bại: {_e}")
     
     # Lấy port từ environment variable (cho cloud platforms) hoặc dùng config
     port = int(os.environ.get('PORT', config.API_PORT))
