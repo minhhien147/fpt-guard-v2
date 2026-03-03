@@ -39,6 +39,17 @@ class UserModel {
     };
   }
 
+  /// Chỉ bao gồm các cột tồn tại trong bảng users của SQLite local
+  Map<String, dynamic> toDbMap() {
+    return {
+      'full_name': fullName,
+      'student_id': studentId,
+      'phone': phone,
+      'email': email,
+      'created_at': createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+    };
+  }
+
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       id: map['id'],

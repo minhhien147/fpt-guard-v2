@@ -4,12 +4,10 @@ import '../services/database_service.dart';
 
 class ContactsProvider with ChangeNotifier {
   List<ContactModel> _personalContacts = [];
-  final List<ContactModel> _systemContacts = ContactModel.getSystemContacts();
   bool _isLoading = false;
 
   List<ContactModel> get personalContacts => _personalContacts;
-  List<ContactModel> get systemContacts => _systemContacts;
-  List<ContactModel> get allContacts => [..._systemContacts, ..._personalContacts];
+  List<ContactModel> get allContacts => List.unmodifiable(_personalContacts);
   bool get isLoading => _isLoading;
 
   // Tải danh sách liên hệ cá nhân

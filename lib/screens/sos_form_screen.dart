@@ -8,6 +8,7 @@ import '../providers/contacts_provider.dart';
 import '../services/email_service.dart';
 import '../services/database_service.dart';
 import '../services/auth_service.dart';
+import '../services/audio_recording_service.dart';
 
 class SOSFormScreen extends StatefulWidget {
   const SOSFormScreen({super.key});
@@ -21,10 +22,42 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
   final _descriptionController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   File? _imageFile;
+  File? _audioFile;
   bool _isSending = false;
+  bool _isRecording = false;
+  int _recordingSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoRecord();
+  }
+
+  Future<void> _startAutoRecord() async {
+    final user = AuthService().currentUser;
+    if (user == null || !user.isPro) return;
+
+    // Bắt đầu ghi ngay (non-blocking)
+    await AudioRecordingService().startBackground();
+    if (!mounted) return;
+    setState(() => _isRecording = true);
+
+    // Đếm giây để hiển thị UI – ghi tối đa 60s rồi tự dừng
+    for (int i = 1; i <= 60; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted || !AudioRecordingService().isRecording) break;
+      setState(() => _recordingSeconds = i);
+    }
+    // Tự dừng sau 60s nếu user chưa gửi
+    if (AudioRecordingService().isRecording) {
+      final f = await AudioRecordingService().stopAndGetFile();
+      if (mounted) setState(() { _audioFile = f; _isRecording = false; });
+    }
+  }
 
   @override
   void dispose() {
+    AudioRecordingService().stopRecording();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -169,6 +202,12 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
         emails.insert(0, user.email);
       }
 
+      // Dừng ghi âm và lấy file (dù còn đang ghi hay đã xong)
+      if (AudioRecordingService().isRecording) {
+        final f = await AudioRecordingService().stopAndGetFile();
+        if (f != null) _audioFile = f;
+      }
+
       bool emailSent = false;
       if (emails.isNotEmpty) {
         emailSent = await EmailService.sendSOSEmail(
@@ -180,6 +219,7 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
           recipientEmails: emails,
           description: description,
           imageFile: _imageFile!,
+          audioFile: _audioFile,
         );
       }
 
@@ -414,7 +454,44 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
                   color: Colors.grey[600],
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+
+              // Audio recording indicator (Pro only)
+              if (_isRecording || _audioFile != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _isRecording ? Colors.orange[50] : Colors.green[50],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _isRecording ? Colors.orange : Colors.green,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isRecording ? Icons.mic : Icons.mic_none,
+                        color: _isRecording ? Colors.orange : Colors.green,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _isRecording
+                              ? 'Đang ghi âm hiện trường... ${_recordingSeconds}s'
+                              : 'Đã ghi âm ${_recordingSeconds}s – sẽ đính kèm vào email',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _isRecording ? Colors.orange[800] : Colors.green[800],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 16),
 
               // Nút gửi
               ElevatedButton(

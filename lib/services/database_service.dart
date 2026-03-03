@@ -127,14 +127,14 @@ class DatabaseService {
 
   Future<int> insertUser(UserModel user) async {
     final db = await database;
-    return await db.insert('users', user.toMap());
+    return await db.insert('users', user.toDbMap());
   }
 
   Future<int> updateUser(UserModel user) async {
     final db = await database;
     return await db.update(
       'users',
-      user.toMap(),
+      user.toDbMap(),
       where: 'id = ?',
       whereArgs: [user.id],
     );

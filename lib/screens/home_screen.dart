@@ -26,24 +26,70 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isSendingSOS = false;
   TideModel? _todayTide;
   ShakeDetector? _shakeDetector;
-  bool _shakeToSOSEnabled = true; // Có thể lưu vào SharedPreferences
+  bool _shakeToSOSEnabled = true;
   final VolumeSOSService _volumeSOSService = VolumeSOSService();
-  bool _volumeSOSEnabled = true; // Có thể lưu vào SharedPreferences
+  bool _volumeSOSEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    // Bật tracking vị trí liên tục khi vào màn hình
+    WidgetsBinding.instance.addObserver(this);
+    // Callbacks nhận sự kiện thay đổi hạng tài khoản
+    AuthService().onProUpgraded = () {
+      if (mounted) _showProCelebrationDialog();
+    };
+    AuthService().onProDowngraded = () {
+      if (mounted) _showProDowngradeDialog();
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LocationProvider>().startLocationTracking();
       _loadTodayTide();
       _initShakeDetector();
       _initVolumeSOSDetector();
     });
+  }
+
+  /// Khi app trở lại foreground, refresh trạng thái user để phát hiện nâng cấp Pro.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshUserStatus();
+    }
+  }
+
+  Future<void> _refreshUserStatus() async {
+    final auth = AuthService();
+    if (!auth.isLoggedIn) return;
+    final ok = await auth.loadCurrentUser();
+    if (ok && mounted) {
+      // Sync lại UserProvider từ AuthService
+      final user = auth.currentUser;
+      if (user != null) {
+        context.read<UserProvider>().saveUser(user);
+      }
+    }
+  }
+
+  /// Dialog ăn mừng nâng cấp Pro.
+  void _showProCelebrationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ProUpgradeDialog(),
+    );
+  }
+
+  /// Dialog thông báo hạ về Free.
+  void _showProDowngradeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ProDowngradeDialog(),
+    );
   }
 
   void _initShakeDetector() {
@@ -230,11 +276,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    // Tắt shake detector
+    WidgetsBinding.instance.removeObserver(this);
+    AuthService().onProUpgraded   = null;
+    AuthService().onProDowngraded = null;
     _shakeDetector?.stopListening();
-    // Tắt volume SOS detector
     _volumeSOSService.dispose();
-    // Tắt tracking khi rời màn hình để tiết kiệm pin
     context.read<LocationProvider>().stopLocationTracking();
     super.dispose();
   }
@@ -882,32 +928,28 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 15),
 
-              // System contacts (4 số cố định)
-              Consumer<ContactsProvider>(
-                builder: (context, contactsProvider, _) {
-                  final systemContacts = contactsProvider.systemContacts.take(4).toList();
-                  
-                  return Column(
+              // Nút gọi nhanh khẩn cấp
+              Column(
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: _QuickCallButton(
                               icon: Icons.security,
-                              label: systemContacts[0].contactName,
-                              phone: systemContacts[0].contactPhone,
+                              label: 'Bảo vệ FPT',
+                              phone: '0123456789',
                               color: Colors.blue,
-                              onTap: () => _callEmergency(systemContacts[0].contactPhone.replaceAll(RegExp(r'[^0-9]'), '')),
+                              onTap: () => _callEmergency('0123456789'),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: _QuickCallButton(
                               icon: Icons.local_police,
-                              label: systemContacts[1].contactName,
-                              phone: systemContacts[1].contactPhone,
+                              label: 'Công an 113',
+                              phone: '113',
                               color: Colors.red,
-                              onTap: () => _callEmergency(systemContacts[1].contactPhone),
+                              onTap: () => _callEmergency('113'),
                             ),
                           ),
                         ],
@@ -918,10 +960,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             child: _QuickCallButton(
                               icon: Icons.local_hospital,
-                              label: systemContacts[2].contactName,
-                              phone: systemContacts[2].contactPhone,
+                              label: 'Y tế 115',
+                              phone: '115',
                               color: Colors.green,
-                              onTap: () => _callEmergency(systemContacts[2].contactPhone),
+                              onTap: () => _callEmergency('115'),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -937,37 +979,43 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       
-                      // Personal contacts (người dùng tự thêm)
-                      if (contactsProvider.personalContacts.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        const Divider(),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            l10n.personalContacts,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ...contactsProvider.personalContacts.map((contact) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: _PersonalContactCard(
-                              contact: contact,
-                              onCall: () => _callEmergency(contact.contactPhone.replaceAll(RegExp(r'[^0-9]'), '')),
-                              onDelete: () => _confirmDeleteContact(contact),
-                            ),
+                      // Liên hệ cá nhân user đã thêm
+                      Consumer<ContactsProvider>(
+                        builder: (context, cp, _) {
+                          if (cp.personalContacts.isEmpty) return const SizedBox.shrink();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 20),
+                              const Divider(),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  l10n.personalContacts,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ...cp.personalContacts.map((contact) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: _PersonalContactCard(
+                                    contact: contact,
+                                    onCall: () => _callEmergency(contact.contactPhone.replaceAll(RegExp(r'[^0-9]'), '')),
+                                    onDelete: () => _confirmDeleteContact(contact),
+                                  ),
+                                );
+                              }),
+                            ],
                           );
-                        }).toList(),
-                      ],
+                        },
+                      ),
                     ],
-                  );
-                },
               ),
             ],
           ),
@@ -1028,6 +1076,314 @@ class _QuickCallButton extends StatelessWidget {
     );
   }
 }
+
+// ─── Pro Upgrade Celebration Dialog ──────────────────────────────────────────
+
+class _ProUpgradeDialog extends StatefulWidget {
+  @override
+  State<_ProUpgradeDialog> createState() => _ProUpgradeDialogState();
+}
+
+class _ProUpgradeDialogState extends State<_ProUpgradeDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
+    _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final proFeatures = [
+      'SOS không giới hạn mỗi tháng',
+      'Tự động ghi âm hiện trường khi gửi SOS',
+      'Bảo vệ chạy nền liên tục',
+      'Chia sẻ vị trí thời gian thực (link theo dõi)',
+      'Lịch sử & thống kê SOS',
+      'Khu vực an toàn (Geofence) với cảnh báo email',
+      'Thêm không giới hạn liên hệ khẩn cấp',
+    ];
+
+    return FadeTransition(
+      opacity: _fade,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ScaleTransition(
+          scale: _scale,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
+              ),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Crown icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.amber.withValues(alpha: 30 / 255),
+                    border: Border.all(color: Colors.amber, width: 2),
+                  ),
+                  child: const Text('👑', style: TextStyle(fontSize: 40)),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Chúc mừng!',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Tài khoản của bạn đã được\nnâng cấp lên PRO',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                ),
+                const SizedBox(height: 20),
+                // Divider
+                Container(height: 1, color: Colors.amber.withValues(alpha: 60 / 255)),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Bạn đã mở khóa:',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...proFeatures.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('✦ ', style: TextStyle(color: Colors.amber, fontSize: 13)),
+                      Expanded(
+                        child: Text(
+                          f,
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                    child: const Text(
+                      'Bắt đầu trải nghiệm PRO  🚀',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Pro Downgrade Notification Dialog ───────────────────────────────────────
+
+class _ProDowngradeDialog extends StatefulWidget {
+  @override
+  State<_ProDowngradeDialog> createState() => _ProDowngradeDialogState();
+}
+
+class _ProDowngradeDialogState extends State<_ProDowngradeDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const lockedFeatures = [
+      'Ghi âm tự động khi gửi SOS',
+      'Bảo vệ chạy nền',
+      'Chia sẻ vị trí thời gian thực',
+      'Lịch sử & thống kê SOS',
+      'Khu vực an toàn (Geofence)',
+      'Không giới hạn liên hệ (còn tối đa 3)',
+    ];
+
+    return FadeTransition(
+      opacity: _fade,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ScaleTransition(
+          scale: _scale,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2C2C2C), Color(0xFF1A1A1A)],
+              ),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon khoá
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey.withValues(alpha: 0.15),
+                    border: Border.all(color: Colors.grey[600]!, width: 2),
+                  ),
+                  child: const Text('🔒', style: TextStyle(fontSize: 38)),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tài khoản đã hạ về FREE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Gói Pro của bạn đã hết hạn hoặc bị thu hồi.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+                Container(height: 1, color: Colors.grey[700]),
+                const SizedBox(height: 14),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Các tính năng bị khóa:',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...lockedFeatures.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('✕ ', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                      Expanded(
+                        child: Text(
+                          f,
+                          style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'SOS free: tối đa 10 lần/tháng, tự reset đầu tháng.',
+                          style: TextStyle(color: Colors.blue, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                    child: const Text(
+                      'Đã hiểu',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _PersonalContactCard extends StatelessWidget {
   final ContactModel contact;

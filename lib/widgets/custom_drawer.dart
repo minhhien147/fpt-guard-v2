@@ -95,6 +95,22 @@ class CustomDrawer extends StatelessWidget {
               Navigator.pushReplacementNamed(context, '/news');
             },
           ),
+          _DrawerItem(
+            icon: Icons.history,
+            title: 'Lịch sử SOS',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/sos-history');
+            },
+          ),
+          _DrawerItem(
+            icon: Icons.fence,
+            title: 'Khu vực an toàn',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/geofence');
+            },
+          ),
           const Divider(),
           _DrawerItem(
             icon: Icons.settings,

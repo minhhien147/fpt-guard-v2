@@ -24,6 +24,12 @@ class AuthService {
   /// Gọi khi server trả 401/403 (token hết hạn hoặc tài khoản bị khóa) → app sẽ logout và chuyển về màn login.
   void Function()? onUnauthorized;
 
+  /// Gọi đúng 1 lần khi tài khoản được nâng cấp từ Free → Pro (admin cấp Pro).
+  void Function()? onProUpgraded;
+
+  /// Gọi khi tài khoản bị hạ từ Pro → Free (hết hạn hoặc admin thu hồi).
+  void Function()? onProDowngraded;
+
   // Initialize - Load token from storage
   Future<bool> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -210,6 +216,17 @@ class AuthService {
   // Load current user
   Future<bool> loadCurrentUser() async {
     try {
+      // Lấy trạng thái Pro trước đó:
+      //  - Ưu tiên từ bộ nhớ (_currentUser) nếu đang trong session.
+      //  - Fallback từ SharedPreferences để xử lý đúng qua các lần restart app.
+      final prefs = await SharedPreferences.getInstance();
+      bool wasPro;
+      if (_currentUser != null) {
+        wasPro = _currentUser!.isPro;
+      } else {
+        wasPro = prefs.getBool('last_is_pro') ?? false;
+      }
+
       final response = await http.get(
         Uri.parse('$baseUrl/api/auth/me'),
         headers: {
@@ -222,6 +239,17 @@ class AuthService {
         final data = jsonDecode(response.body);
         if (data['success']) {
           _currentUser = UserModel.fromMap(data['data']);
+          // Lưu trạng thái Pro hiện tại để session tiếp theo so sánh
+          await prefs.setBool('last_is_pro', _currentUser!.isPro);
+
+          // Detect Free → Pro (nâng cấp)
+          if (!wasPro && _currentUser!.isPro) {
+            _notifyProUpgradeIfNeeded(_currentUser!.id);
+          }
+          // Detect Pro → Free (hạ cấp / hết hạn)
+          if (wasPro && !_currentUser!.isPro) {
+            onProDowngraded?.call();
+          }
           return true;
         }
       }
@@ -237,6 +265,18 @@ class AuthService {
       print('Error loading current user: $e');
       return false;
     }
+  }
+
+  /// Gọi callback onProUpgraded đúng 1 lần cho mỗi user (dùng SharedPreferences làm flag).
+  Future<void> _notifyProUpgradeIfNeeded(int? userId) async {
+    if (userId == null || onProUpgraded == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key   = 'pro_upgrade_notified_$userId';
+    if (prefs.getBool(key) == true) return;  // đã thông báo rồi
+    await prefs.setBool(key, true);
+    // Reset flag downgrade nếu có (để lần downgrade tiếp theo sau upgrade này vẫn báo)
+    await prefs.remove('pro_downgrade_notified_$userId');
+    onProUpgraded!();
   }
   
   // Update profile

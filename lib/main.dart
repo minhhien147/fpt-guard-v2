@@ -19,6 +19,11 @@ import 'screens/tide_screen.dart';
 import 'screens/sos_form_screen.dart';
 import 'screens/group_login_screen.dart';
 import 'screens/verify_email_screen.dart';
+import 'screens/sos_history_screen.dart';
+import 'screens/geofence_screen.dart';
+import 'services/geofence_service.dart';
+import 'services/geofence_alert_service.dart';
+import 'services/location_share_service.dart';
 // import 'screens/water_level_screen.dart'; // ĐÃ ẨN - uncomment để bật lại
 import 'providers/user_provider.dart';
 import 'providers/location_provider.dart';
@@ -72,9 +77,26 @@ void main() async {
         prefs.getBool('background_protection_enabled') ?? false;
     if (backgroundEnabled) {
       await ForegroundServiceController.start();
+      // Khởi động location share nếu đã có token (Pro)
+      await LocationShareService().start();
+    }
+    // Khởi động geofence nếu đã cấu hình
+    final geoCfg = await GeofenceService.load();
+    if (geoCfg != null && geoCfg['enabled'] == true) {
+      final geoSvc = GeofenceService();
+      geoSvc.onBreach = (lat, lng, dist) {
+        debugPrint('🚨 Geofence breach! dist=${dist.toInt()}m');
+        GeofenceAlertService().handle(
+          navigatorCtx: navigatorKey.currentContext,
+          lat: lat,
+          lng: lng,
+          distanceM: dist,
+        );
+      };
+      await geoSvc.start();
     }
   } catch (e) {
-    debugPrint('Error starting foreground service from main: $e');
+    debugPrint('Error starting background services from main: $e');
   }
 
   // Khi admin khóa tài khoản (401/403), app tự logout và chuyển về màn login
@@ -182,6 +204,8 @@ class MyApp extends StatelessWidget {
               '/tide': (context) => const TideScreen(),
               '/sos-form': (context) => const SOSFormScreen(),
               '/group-login': (context) => const GroupLoginScreen(),
+              '/sos-history': (context) => const SOSHistoryScreen(),
+              '/geofence': (context) => const GeofenceScreen(),
               // VerifyEmailScreen needs email arg → pushed via MaterialPageRoute, not named route
               // '/water-level': (context) => const WaterLevelScreen(), // ĐÃ ẨN - uncomment để bật lại
             },

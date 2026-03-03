@@ -4,7 +4,7 @@ class ContactModel {
   final String contactName;
   final String contactPhone;
   final String? contactEmail;
-  final String contactType; // 'personal' or 'system'
+  final String contactType;
   final String? icon;
   final String? address;
   final DateTime? createdAt;
@@ -49,42 +49,5 @@ class ContactModel {
     );
   }
 
-  // System contacts
-  static List<ContactModel> getSystemContacts() {
-    return [
-      ContactModel(
-        contactName: 'Bảo vệ FPT',
-        contactPhone: '0123-456-789',
-        contactType: 'system',
-        icon: '🛡️',
-      ),
-      ContactModel(
-        contactName: 'Công an 113',
-        contactPhone: '113',
-        contactType: 'system',
-        icon: '👮',
-      ),
-      ContactModel(
-        contactName: 'Y tế 115',
-        contactPhone: '115',
-        contactType: 'system',
-        icon: '🏥',
-      ),
-      ContactModel(
-        contactName: 'BV Đa khoa Quốc tế S.I.S Cần Thơ',
-        contactPhone: '(0292) 378 9911',
-        contactType: 'system',
-        icon: '🏥',
-        address: '397 Nguyễn Văn Cừ, P. An Bình, TP. Cần Thơ',
-      ),
-      ContactModel(
-        contactName: 'BV Đa khoa TP. Cần Thơ',
-        contactPhone: '(0292) 3821 236',
-        contactType: 'system',
-        icon: '🏥',
-        address: 'Số 4 Châu Văn Liêm, P. Tân An, Q. Ninh Kiều, TP. Cần Thơ',
-      ),
-    ];
-  }
 }
 

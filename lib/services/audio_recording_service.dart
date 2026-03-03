@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
-/// Service ghi âm audio cho SOS khẩn cấp
+/// Service ghi âm audio cho SOS khẩn cấp.
+///
+/// Luồng chính:
+///   1. Gọi [startBackground()] ngay khi màn hình SOS mở → bắt đầu ghi, không block.
+///   2. Gọi [stopAndGetFile()] khi user nhấn "Gửi" → dừng ghi, trả về File.
 class AudioRecordingService {
   static final AudioRecordingService _instance = AudioRecordingService._internal();
   factory AudioRecordingService() => _instance;
@@ -11,81 +15,103 @@ class AudioRecordingService {
 
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
+  String? _currentFilePath;
 
-  /// Ghi âm trong X giây và trả về file audio
-  /// 
-  /// [durationSeconds] - Thời gian ghi âm (mặc định: 5 giây)
-  /// Returns: File audio hoặc null nếu lỗi
-  Future<File?> recordAudio({int durationSeconds = 5}) async {
-    if (_isRecording) {
-      debugPrint('Already recording, skipping...');
-      return null;
-    }
+  bool get isRecording => _isRecording;
 
+  // ── Background recording (non-blocking) ──────────────────────────────────
+
+  /// Bắt đầu ghi âm ngay, không chờ – trả về ngay lập tức.
+  /// Nếu đang ghi thì bỏ qua.
+  Future<void> startBackground() async {
+    if (_isRecording) return;
     try {
-      // Kiểm tra quyền microphone
       if (!await _recorder.hasPermission()) {
-        debugPrint('Microphone permission denied');
-        return null;
+        debugPrint('🎤 Microphone permission denied');
+        return;
       }
-
-      // Tạo file tạm để lưu audio
-      final directory = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final filePath = '${directory.path}/sos_audio_$timestamp.m4a';
-      final file = File(filePath);
-
+      final dir = await getTemporaryDirectory();
+      final ts  = DateTime.now().millisecondsSinceEpoch;
+      _currentFilePath = '${dir.path}/sos_audio_$ts.m4a';
       _isRecording = true;
-      debugPrint('🎤 Starting audio recording for $durationSeconds seconds...');
-
-      // Bắt đầu ghi âm
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
         ),
-        path: filePath,
+        path: _currentFilePath!,
       );
-
-      // Đợi X giây
-      await Future.delayed(Duration(seconds: durationSeconds));
-
-      // Dừng ghi âm
-      final path = await _recorder.stop();
-      _isRecording = false;
-
-      if (path != null && await file.exists()) {
-        debugPrint('✅ Audio recorded successfully: $path');
-        return file;
-      } else {
-        debugPrint('❌ Failed to save audio file');
-        return null;
-      }
+      debugPrint('🎤 Background recording started → $_currentFilePath');
     } catch (e) {
       _isRecording = false;
-      debugPrint('❌ Error recording audio: $e');
+      _currentFilePath = null;
+      debugPrint('❌ startBackground error: $e');
+    }
+  }
+
+  /// Dừng ghi âm và trả về file đã ghi.
+  /// Nếu không đang ghi thì trả về null.
+  Future<File?> stopAndGetFile() async {
+    if (!_isRecording) return null;
+    try {
+      final path = await _recorder.stop();
+      _isRecording = false;
+      final resolvedPath = path ?? _currentFilePath;
+      _currentFilePath = null;
+      if (resolvedPath != null) {
+        final f = File(resolvedPath);
+        if (await f.exists() && await f.length() > 0) {
+          debugPrint('✅ Audio saved: $resolvedPath (${await f.length()} bytes)');
+          return f;
+        }
+      }
+      debugPrint('❌ Audio file not found or empty');
+      return null;
+    } catch (e) {
+      _isRecording = false;
+      _currentFilePath = null;
+      debugPrint('❌ stopAndGetFile error: $e');
       return null;
     }
   }
 
-  /// Dừng ghi âm ngay lập tức (nếu đang ghi)
+  // ── Legacy API (kept for compatibility) ──────────────────────────────────
+
+  /// Ghi âm trong [durationSeconds] giây (blocking). Dùng khi cần ghi cố định.
+  Future<File?> recordAudio({int durationSeconds = 5}) async {
+    if (_isRecording) return null;
+    try {
+      if (!await _recorder.hasPermission()) return null;
+      final dir = await getTemporaryDirectory();
+      final ts  = DateTime.now().millisecondsSinceEpoch;
+      _currentFilePath = '${dir.path}/sos_audio_$ts.m4a';
+      _isRecording = true;
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000, sampleRate: 44100),
+        path: _currentFilePath!,
+      );
+      await Future.delayed(Duration(seconds: durationSeconds));
+      return await stopAndGetFile();
+    } catch (e) {
+      _isRecording = false;
+      _currentFilePath = null;
+      debugPrint('❌ recordAudio error: $e');
+      return null;
+    }
+  }
+
+  /// Dừng ngay (không trả file).
   Future<void> stopRecording() async {
     if (_isRecording) {
       try {
         await _recorder.stop();
-        _isRecording = false;
-        debugPrint('🛑 Recording stopped');
-      } catch (e) {
-        debugPrint('Error stopping recording: $e');
-      }
+      } catch (_) {}
+      _isRecording = false;
+      _currentFilePath = null;
     }
   }
 
-  /// Kiểm tra đang ghi âm không
-  bool get isRecording => _isRecording;
-
-  /// Dọn dẹp
   Future<void> dispose() async {
     await stopRecording();
     await _recorder.dispose();

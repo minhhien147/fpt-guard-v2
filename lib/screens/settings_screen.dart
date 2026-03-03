@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
@@ -8,6 +9,7 @@ import '../models/user_model.dart';
 import '../widgets/custom_drawer.dart';
 import '../services/auth_service.dart';
 import '../services/foreground_service_controller.dart';
+import '../services/location_share_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _isLoading = false;
   bool _backgroundEnabled = false;
+  String? _shareUrl;
 
   @override
   void initState() {
@@ -47,8 +50,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadBackgroundSetting() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('background_protection_enabled') ?? false;
+    final url = await LocationShareService().getShareUrl();
     if (mounted) {
       setState(() {
+        _shareUrl = url;
         _backgroundEnabled = enabled;
       });
     }
@@ -83,15 +88,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (value) {
       await ForegroundServiceController.start();
+      // Start location share (Pro only)
+      final user = AuthService().currentUser;
+      if (user != null && user.isPro) {
+        await LocationShareService().start();
+        final url = await LocationShareService().getShareUrl();
+        if (mounted) setState(() => _shareUrl = url);
+      }
     } else {
       await ForegroundServiceController.stop();
+      LocationShareService().stop();
     }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          value ? 'Đã bật chế độ chạy nền bảo vệ 24/7' : 'Đã tắt chế độ chạy nền',
+          value ? 'Đã bật chế độ bảo vệ 24/7' : 'Đã tắt chế độ bảo vệ',
         ),
         backgroundColor: value ? Colors.green : Colors.grey[700],
       ),
@@ -307,7 +320,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
+              // Real-time location share (Pro)
+              Consumer<UserProvider>(
+                builder: (context, up, _) {
+                  final isPro = up.user?.isPro ?? false;
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Chia sẻ vị trí thời gian thực',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              if (isPro)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                      color: Colors.amber[100],
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: const Text('PRO',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            isPro
+                                ? 'Khi bật bảo vệ chạy nền, vị trí cập nhật mỗi 60 giây. Gửi link cho người thân để theo dõi.'
+                                : 'Nâng cấp Pro để chia sẻ vị trí thời gian thực với người thân.',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                          if (isPro && _shareUrl != null) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue[200]!),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Link theo dõi vị trí:',
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  Text(_shareUrl!,
+                                      style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(text: _shareUrl!));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Đã sao chép link!')),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.copy, size: 16),
+                                      label: const Text('Sao chép link'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (isPro && _shareUrl == null && _backgroundEnabled) ...[
+                            const SizedBox(height: 10),
+                            const Text('Đang khởi tạo link chia sẻ...',
+                                style: TextStyle(fontSize: 13, color: Colors.grey)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // Geofence shortcut
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.fence, color: Color(0xFF0077B6)),
+                  title: const Text('Khu vực an toàn (Geofence)',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Cảnh báo khi ra khỏi vùng định sẵn'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => Navigator.pushNamed(context, '/geofence'),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // Form fields
               Card(
                 child: Padding(

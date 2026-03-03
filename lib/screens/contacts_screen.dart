@@ -183,66 +183,34 @@ class ContactsScreen extends StatelessWidget {
       drawer: const CustomDrawer(),
       body: contactsProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // System contacts
-                const Text(
-                  'Liên hệ hệ thống',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ...contactsProvider.systemContacts.map((contact) {
-                  return _ContactCard(
-                    contact: contact,
-                    onCall: () => _callPhone(contact.contactPhone),
-                    onSMS: () => _sendSMS(contact.contactPhone),
-                    onEmail: contact.contactEmail != null
-                        ? () => _sendEmail(contact.contactEmail!)
-                        : null,
-                  );
-                }),
-                
-                const SizedBox(height: 30),
-                
-                // Personal contacts
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Liên hệ cá nhân',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _showAddContactDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Thêm'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                
-                if (contactsProvider.personalContacts.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Center(
-                        child: Text(
-                          'Chưa có liên hệ nào.\nNhấn "Thêm" để thêm liên hệ mới.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+          : contactsProvider.personalContacts.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.contacts, size: 72, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Chưa có liên hệ nào',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[500],
                         ),
                       ),
-                    ),
-                  )
-                else
-                  ...contactsProvider.personalContacts.map((contact) {
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nhấn + để thêm liên hệ khẩn cấp',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: contactsProvider.personalContacts.length,
+                  itemBuilder: (context, index) {
+                    final contact = contactsProvider.personalContacts[index];
                     return _ContactCard(
                       contact: contact,
                       onCall: () => _callPhone(contact.contactPhone),
@@ -256,9 +224,8 @@ class ContactsScreen extends StatelessWidget {
                         contact.contactName,
                       ),
                     );
-                  }),
-              ],
-            ),
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddContactDialog(context),
         child: const Icon(Icons.add),
