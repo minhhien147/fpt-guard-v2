@@ -40,7 +40,13 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
     // Bắt đầu ghi ngay (non-blocking)
     await AudioRecordingService().startBackground();
     if (!mounted) return;
-    setState(() => _isRecording = true);
+
+    // Chỉ hiển thị indicator nếu recorder thực sự đã start
+    if (AudioRecordingService().isRecording) {
+      setState(() => _isRecording = true);
+    } else {
+      return; // Permission bị từ chối hoặc lỗi khởi tạo
+    }
 
     // Đếm giây để hiển thị UI – ghi tối đa 60s rồi tự dừng
     for (int i = 1; i <= 60; i++) {
@@ -48,16 +54,23 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
       if (!mounted || !AudioRecordingService().isRecording) break;
       setState(() => _recordingSeconds = i);
     }
+
     // Tự dừng sau 60s nếu user chưa gửi
-    if (AudioRecordingService().isRecording) {
+    if (mounted && AudioRecordingService().isRecording) {
       final f = await AudioRecordingService().stopAndGetFile();
-      if (mounted) setState(() { _audioFile = f; _isRecording = false; });
+      if (mounted) {
+        setState(() {
+          _audioFile = f;
+          _isRecording = false;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
-    AudioRecordingService().stopRecording();
+    // Fire-and-forget cleanup; AudioRecordingService is a singleton so safe
+    AudioRecordingService().stopRecording().catchError((_) {});
     _descriptionController.dispose();
     super.dispose();
   }
@@ -224,63 +237,54 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
       }
 
       // Hiển thị kết quả
-      if (mounted) {
-        if (apiResult != null && apiResult['success']) {
-          // SOS đã được gửi lên server thành công
-          final message = emailSent 
-              ? '✅ Đã gửi cảnh báo lên hệ thống và ${emails.length} email!'
-              : '✅ Đã gửi cảnh báo lên hệ thống!';
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          Navigator.pop(context);
-        } else if (apiResult == null && emailSent) {
-          // Chưa đăng nhập nhưng đã gửi email thành công
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ Đã gửi cảnh báo đến ${emails.length} email!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          Navigator.pop(context);
-        } else if (apiResult != null && !apiResult['success']) {
-          // API thất bại nhưng có thể email đã gửi
-          if (emailSent) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('⚠️ Đã gửi email nhưng lỗi kết nối server: ${apiResult['error']}'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 4),
-              ),
-            );
-            Navigator.pop(context);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('❌ Lỗi: ${apiResult['error']}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+      if (!mounted) return;
+
+      bool shouldPop = false;
+      String resultMessage = '';
+      Color resultColor = Colors.red;
+
+      if (apiResult != null && apiResult['success'] == true) {
+        shouldPop = true;
+        resultMessage = emailSent
+            ? '✅ Đã gửi cảnh báo lên hệ thống và ${emails.length} email!'
+            : '✅ Đã gửi cảnh báo lên hệ thống!';
+        resultColor = Colors.green;
+      } else if (apiResult == null && emailSent) {
+        shouldPop = true;
+        resultMessage = '✅ Đã gửi cảnh báo đến ${emails.length} email!';
+        resultColor = Colors.green;
+      } else if (apiResult != null && apiResult['success'] == false) {
+        if (emailSent) {
+          shouldPop = true;
+          resultMessage = '⚠️ Đã gửi email nhưng lỗi kết nối server: ${apiResult['error']}';
+          resultColor = Colors.orange;
         } else {
-          // Không gửi được cả API và email
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Không thể gửi cảnh báo. Vui lòng thử lại.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          resultMessage = '❌ Lỗi: ${apiResult['error']}';
+          resultColor = Colors.red;
         }
+      } else {
+        resultMessage = '❌ Không thể gửi cảnh báo. Vui lòng thử lại.';
+        resultColor = Colors.red;
+      }
+
+      // Reset state TRƯỚC khi pop để tránh setState sau dispose
+      setState(() => _isSending = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(resultMessage),
+          backgroundColor: resultColor,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      if (shouldPop) {
+        Navigator.pop(context);
       }
     } catch (e) {
-      print('Error sending SOS: $e');
+      debugPrint('Error sending SOS: $e');
       if (mounted) {
+        setState(() => _isSending = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi: $e'),
@@ -289,7 +293,8 @@ class _SOSFormScreenState extends State<SOSFormScreen> {
         );
       }
     } finally {
-      if (mounted) {
+      // Safety net: chỉ reset nếu widget vẫn mounted và chưa reset ở trên
+      if (mounted && _isSending) {
         setState(() => _isSending = false);
       }
     }
