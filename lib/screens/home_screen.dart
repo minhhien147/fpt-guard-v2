@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'package:shake/shake.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/user_provider.dart';
@@ -540,7 +540,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _callEmergency(String phone) async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      await FlutterPhoneDirectCaller.callNumber(phone);
+      final uri = Uri(scheme: 'tel', path: phone);
+      if (await url_launcher.canLaunchUrl(uri)) {
+        await url_launcher.launchUrl(uri);
+      } else {
+        _showMessage(l10n.cannotCall, isError: true);
+      }
     } catch (e) {
       _showMessage(l10n.cannotCall, isError: true);
     }

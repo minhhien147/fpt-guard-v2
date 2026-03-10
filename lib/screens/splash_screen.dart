@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/contacts_provider.dart';
@@ -26,16 +27,32 @@ class _SplashScreenState extends State<SplashScreen> {
     // Initialize auth service
     final authService = AuthService();
     final isLoggedIn = await authService.init();
+
+    // Check policy acceptance
+    final prefs = await SharedPreferences.getInstance();
+    final policyAccepted = prefs.getBool('policy_accepted') ?? false;
     
     // Wait minimum time for splash screen
     await Future.delayed(const Duration(seconds: 2));
     
     if (!mounted) return;
     
+    // If policy not yet accepted, show policy screen first
+    if (!policyAccepted) {
+      Navigator.of(context).pushReplacementNamed('/policy');
+      return;
+    }
+
     // Check if user is logged in
     if (isLoggedIn) {
-      // Load user data
-      await context.read<UserProvider>().loadUser();
+      // Sync UserProvider từ AuthService (API) — luôn ưu tiên dữ liệu server
+      final apiUser = AuthService().currentUser;
+      if (apiUser != null) {
+        context.read<UserProvider>().setFromApiUser(apiUser);
+      } else {
+        // Fallback: đọc từ SQLite local nếu chưa có API data
+        await context.read<UserProvider>().loadUser();
+      }
       
       // Load contacts
       await context.read<ContactsProvider>().loadContacts();

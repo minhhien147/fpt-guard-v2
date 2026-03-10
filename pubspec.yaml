@@ -39,8 +39,6 @@ dependencies:
   # Notifications (commented out - not compatible with SDK 36)
   # flutter_local_notifications: ^15.1.0
   
-  # Phone & Contacts
-  flutter_phone_direct_caller: ^2.1.1
   
   # Shake Detection
   shake: ^3.0.0
@@ -72,7 +70,7 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "assets/images/app_icon.png"
   adaptive_icon_background: "#03045E"
   adaptive_icon_foreground: "assets/images/app_icon.png"

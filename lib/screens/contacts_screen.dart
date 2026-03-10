@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/contacts_provider.dart';
 import '../models/contact_model.dart';
@@ -119,9 +118,12 @@ class ContactsScreen extends StatelessWidget {
 
   Future<void> _callPhone(String phone) async {
     try {
-      await FlutterPhoneDirectCaller.callNumber(phone);
+      final uri = Uri(scheme: 'tel', path: phone);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
     } catch (e) {
-      print('Error calling: $e');
+      debugPrint('Error calling: $e');
     }
   }
 

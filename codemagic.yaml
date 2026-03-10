@@ -1,0 +1,142 @@
+workflows:
+
+  # ── iOS: Build IPA & đẩy lên TestFlight ─────────────────────────────────
+  ios-testflight:
+    name: iOS → TestFlight
+    max_build_duration: 60  # phút
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+
+      # Code signing — Automatic signing với App Store Connect API Key
+      # Cấu hình trên giao diện Codemagic: Teams → Integrations → App Store Connect
+      ios_signing:
+        distribution_type: app_store        # hoặc "ad_hoc" để gửi trực tiếp (không qua TestFlight)
+        bundle_identifier: com.fpt.guard.fptGuardV2
+
+      # Biến môi trường — thêm trên Codemagic UI (Environment variables)
+      vars:
+        # App Store Connect API (lấy từ appstoreconnect.apple.com → Users → Keys)
+        APP_STORE_CONNECT_ISSUER_ID: Encrypted(...)
+        APP_STORE_CONNECT_KEY_IDENTIFIER: Encrypted(...)
+        APP_STORE_CONNECT_PRIVATE_KEY: Encrypted(...)
+
+      # File bí mật — upload trên Codemagic UI (Environment variables → Files)
+      # GoogleService-Info.plist: tải từ Firebase Console → Project Settings → iOS app
+      groups:
+        - firebase_ios   # Group chứa GOOGLE_SERVICE_INFO_PLIST (base64)
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
+        - ios/Pods
+
+    scripts:
+      - name: Set up Flutter
+        script: flutter --version
+
+      - name: Get dependencies
+        script: flutter pub get
+
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod repo update
+          pod install
+
+      - name: Place GoogleService-Info.plist
+        script: |
+          echo $GOOGLE_SERVICE_INFO_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
+
+      - name: Generate launcher icons (iOS)
+        script: flutter pub run flutter_launcher_icons -f pubspec.yaml
+
+      - name: Generate localizations
+        script: flutter gen-l10n
+
+      - name: Build IPA
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      app_store_connect:
+        auth: integration   # Dùng App Store Connect API đã cấu hình ở trên
+        submit_to_testflight: true
+        beta_groups:
+          - "Internal Testers"   # Tên nhóm TestFlight của bạn
+
+      email:
+        recipients:
+          - minhhien147@gmail.com   # Nhận email khi build xong
+        notify:
+          success: true
+          failure: true
+
+
+  # ── iOS: Ad-hoc build (cài trực tiếp không qua TestFlight) ──────────────
+  ios-adhoc:
+    name: iOS → Ad Hoc (cài thẳng)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.fpt.guard.fptGuardV2
+      vars:
+        APP_STORE_CONNECT_ISSUER_ID: Encrypted(...)
+        APP_STORE_CONNECT_KEY_IDENTIFIER: Encrypted(...)
+        APP_STORE_CONNECT_PRIVATE_KEY: Encrypted(...)
+      groups:
+        - firebase_ios
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - ios/Pods
+
+    scripts:
+      - name: Get dependencies
+        script: flutter pub get
+
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod repo update
+          pod install
+
+      - name: Place GoogleService-Info.plist
+        script: |
+          echo $GOOGLE_SERVICE_INFO_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
+
+      - name: Generate localizations
+        script: flutter gen-l10n
+
+      - name: Build IPA (Ad Hoc)
+        script: |
+          flutter build ipa --release
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - minhhien147@gmail.com
+        notify:
+          success: true
+          failure: true

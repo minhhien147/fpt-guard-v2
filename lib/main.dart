@@ -21,6 +21,9 @@ import 'screens/group_login_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/sos_history_screen.dart';
 import 'screens/geofence_screen.dart';
+import 'screens/policy_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/reset_password_screen.dart';
 import 'services/geofence_service.dart';
 import 'services/geofence_alert_service.dart';
 import 'services/location_share_service.dart';
@@ -107,12 +110,20 @@ void main() async {
 
   AuthService().onUnauthorized = forceLogout;
 
-  // Polling mỗi 30 giây: nếu đang đăng nhập mà token bị thu hồi/tài khoản bị khóa → tự logout
+  // Polling mỗi 30 giây:
+  //  - Nếu token còn hợp lệ → chỉ cập nhật thông tin user, KHÔNG logout.
+  //  - Nếu server trả 401/403 và AuthService tự clear token → mới logout.
   Timer.periodic(const Duration(seconds: 30), (_) async {
     final auth = AuthService();
     if (!auth.isLoggedIn) return;
+
     final ok = await auth.loadCurrentUser();
-    if (!ok) forceLogout();
+
+    // loadCurrentUser() sẽ tự clear token và gọi onUnauthorized khi 401/403.
+    // Nếu sau khi gọi mà vẫn còn đăng nhập (auth.isLoggedIn == true) thì coi như chỉ lỗi mạng tạm thời → không ép logout.
+    if (!ok && !auth.isLoggedIn) {
+      forceLogout();
+    }
   });
 
   runApp(MyApp(localeProvider: localeProvider));
@@ -206,6 +217,8 @@ class MyApp extends StatelessWidget {
               '/group-login': (context) => const GroupLoginScreen(),
               '/sos-history': (context) => const SOSHistoryScreen(),
               '/geofence': (context) => const GeofenceScreen(),
+              '/policy': (context) => const PolicyScreen(),
+              '/forgot-password': (context) => const ForgotPasswordScreen(),
               // VerifyEmailScreen needs email arg → pushed via MaterialPageRoute, not named route
               // '/water-level': (context) => const WaterLevelScreen(), // ĐÃ ẨN - uncomment để bật lại
             },

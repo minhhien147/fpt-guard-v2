@@ -37,13 +37,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _loadUserData() {
-    final userProvider = context.read<UserProvider>();
-    if (userProvider.hasUser) {
-      final user = userProvider.user!;
-      _nameController.text = user.fullName;
-      _studentIdController.text = user.studentId;
-      _phoneController.text = user.phone;
-      _emailController.text = user.email;
+    // Ưu tiên dữ liệu từ API (AuthService) vì đây là nguồn chính xác nhất.
+    // Fallback sang UserProvider (SQLite local) nếu chưa có API data.
+    final apiUser = AuthService().currentUser;
+    final localUser = context.read<UserProvider>().user;
+    final source = apiUser ?? localUser;
+    if (source != null) {
+      _nameController.text = source.fullName;
+      _studentIdController.text = source.studentId;
+      _phoneController.text = source.phone;
+      _emailController.text = source.email;
     }
   }
 
@@ -112,30 +115,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveUser() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    final user = UserModel(
-      fullName: _nameController.text,
-      studentId: _studentIdController.text,
-      phone: _phoneController.text,
-      email: _emailController.text,
-      createdAt: DateTime.now(),
+    // Gọi API backend để cập nhật — đây là nguồn sự thật duy nhất
+    final result = await AuthService().updateProfile(
+      fullName: _nameController.text.trim(),
+      studentId: _studentIdController.text.trim(),
+      phone: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
     );
-
-    final success = await context.read<UserProvider>().saveUser(user);
 
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      final l10n = AppLocalizations.of(context)!;
+    if (!mounted) return;
+
+    if (result['success']) {
+      // Sync UserProvider từ kết quả API trả về
+      final updatedUser = result['user'] as UserModel?;
+      if (updatedUser != null) {
+        context.read<UserProvider>().setFromApiUser(updatedUser);
+        // Cập nhật luôn SQLite local để nhất quán
+        await context.read<UserProvider>().saveUser(updatedUser);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã lưu thông tin thành công'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? l10n.saved : l10n.error),
-          backgroundColor: success ? Colors.green : Colors.red,
+          content: Text(result['error'] ?? 'Cập nhật thất bại'),
+          backgroundColor: Colors.red,
         ),
       );
     }

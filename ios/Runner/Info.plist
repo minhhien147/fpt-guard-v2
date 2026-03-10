@@ -55,5 +55,17 @@
 	<string>Ứng dụng cần quyền camera để chụp ảnh trong trường hợp khẩn cấp</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ứng dụng cần quyền truy cập ảnh để đính kèm trong tin nhắn SOS</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ứng dụng cần quyền microphone để ghi âm trong trường hợp khẩn cấp</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>telprompt</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

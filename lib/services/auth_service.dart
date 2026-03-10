@@ -147,6 +147,50 @@ class AuthService {
     }
   }
 
+  // Forgot password — sends OTP to email
+  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success']) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'error': data['error'] ?? 'Gửi yêu cầu thất bại'};
+    } catch (e) {
+      return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
+  // Reset password with OTP
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'otp': otp,
+          'new_password': newPassword,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success']) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'error': data['error'] ?? 'Đặt lại mật khẩu thất bại'};
+    } catch (e) {
+      return {'success': false, 'error': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
   // Resend OTP
   Future<Map<String, dynamic>> resendOtp({required String email}) async {
     try {
@@ -255,14 +299,16 @@ class AuthService {
       }
 
       if (response.statusCode == 401 || response.statusCode == 403) {
+        // Token bị thu hồi hoặc tài khoản bị khóa → logout hẳn
         await _clearAuthData();
         onUnauthorized?.call();
-      } else {
-        await _clearAuthData();
       }
+      // Các trường hợp khác (500, timeout, server cold-start...) → giữ token,
+      // coi như lỗi mạng tạm thời, lần mở app sau vẫn còn đăng nhập
       return false;
     } catch (e) {
-      print('Error loading current user: $e');
+      // Lỗi kết nối / timeout → giữ nguyên token, không logout
+      print('loadCurrentUser network error (kept session): $e');
       return false;
     }
   }
@@ -284,12 +330,14 @@ class AuthService {
     String? fullName,
     String? phone,
     String? studentId,
+    String? email,
   }) async {
     try {
       final Map<String, dynamic> updates = {};
       if (fullName != null) updates['full_name'] = fullName;
       if (phone != null) updates['phone'] = phone;
       if (studentId != null) updates['student_id'] = studentId;
+      if (email != null) updates['email'] = email;
       
       final response = await http.put(
         Uri.parse('$baseUrl/api/auth/update'),
@@ -309,6 +357,9 @@ class AuthService {
       }
       if (response.statusCode == 200 && data['success']) {
         _currentUser = UserModel.fromMap(data['data']);
+        // Sync to SharedPreferences so next restart shows correct data
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_data', jsonEncode(data['data']));
         return {'success': true, 'user': _currentUser};
       }
       return {'success': false, 'error': data['error'] ?? 'Cập nhật thất bại'};

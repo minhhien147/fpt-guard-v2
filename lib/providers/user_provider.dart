@@ -63,6 +63,12 @@ class UserProvider with ChangeNotifier {
     }
   }
 
+  /// Cập nhật user trong bộ nhớ từ dữ liệu API (không đọc lại SQLite).
+  void setFromApiUser(UserModel user) {
+    _user = user;
+    notifyListeners();
+  }
+
   // Xóa user (đăng xuất)
   void clearUser() {
     _user = null;
