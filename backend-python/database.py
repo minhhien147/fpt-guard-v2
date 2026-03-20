@@ -22,8 +22,12 @@ class Database:
     
     def get_connection(self):
         """Get database connection"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
+        # WAL mode allows concurrent reads alongside a single writer,
+        # and busy_timeout retries instead of immediately raising "database is locked"
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA busy_timeout=5000')
         return conn
     
     def init_database(self):
@@ -150,6 +154,22 @@ class Database:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_news_published ON news(published DESC)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_news_category ON news(category)')
 
+        # User real-time location sharing (Pro feature)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                accuracy REAL,
+                share_token TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_loc_user ON user_locations(user_id)')
+        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_loc_token ON user_locations(share_token)')
+
         # Add group_code_id to users (idempotent)
         try:
             cursor.execute('ALTER TABLE users ADD COLUMN group_code_id INTEGER REFERENCES group_codes(id)')
@@ -167,11 +187,22 @@ class Database:
             except Exception:
                 pass
 
+        # Password reset OTP columns (idempotent)
+        for col_def in [
+            'ALTER TABLE users ADD COLUMN reset_otp TEXT',
+            'ALTER TABLE users ADD COLUMN reset_otp_expires_at TEXT',
+        ]:
+            try:
+                cursor.execute(col_def)
+            except Exception:
+                pass
+
         # Pro plan + SOS count (idempotent)
         for col_def in [
             'ALTER TABLE users ADD COLUMN is_pro INTEGER DEFAULT 0',
             'ALTER TABLE users ADD COLUMN sos_count INTEGER DEFAULT 0',
             'ALTER TABLE users ADD COLUMN pro_expires_at TEXT',
+            'ALTER TABLE users ADD COLUMN sos_reset_at TEXT',
         ]:
             try:
                 cursor.execute(col_def)
@@ -315,16 +346,24 @@ class Database:
                 updates.append(f"{field} = ?")
                 values.append(value)
         
-        if updates:
-            updates.append("updated_at = ?")
-            values.append(datetime.now().isoformat())
-            values.append(user_id)
-            
-            query = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
-            cursor.execute(query, values)
-            conn.commit()
-        
-        conn.close()
+        try:
+            if updates:
+                updates.append("updated_at = ?")
+                values.append(datetime.now().isoformat())
+                values.append(user_id)
+                
+                query = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+                cursor.execute(query, values)
+                conn.commit()
+        except sqlite3.IntegrityError as e:
+            conn.rollback()
+            if 'student_id' in str(e):
+                raise ValueError('Mã số sinh viên này đã được sử dụng bởi tài khoản khác')
+            elif 'email' in str(e):
+                raise ValueError('Email này đã được sử dụng bởi tài khoản khác')
+            raise
+        finally:
+            conn.close()
         return self.get_user_by_id(user_id)
     
     def get_all_users(self, limit=100, offset=0, role=None):
@@ -820,6 +859,44 @@ class Database:
         conn.close()
         return True
 
+    # ── Password Reset OTP ───────────────────────────────────────────────────
+
+    def generate_reset_otp(self, user_id):
+        """Generate a 6-digit OTP for password reset (expires in 10 minutes)."""
+        import random
+        otp = f"{random.randint(0, 999999):06d}"
+        expires_at = (datetime.now() + timedelta(minutes=10)).isoformat()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET reset_otp = ?, reset_otp_expires_at = ? WHERE id = ?',
+            (otp, expires_at, user_id)
+        )
+        conn.commit()
+        conn.close()
+        return otp
+
+    def verify_reset_otp_and_change_password(self, email, otp, new_password):
+        """Verify reset OTP, update password hash, clear OTP. Returns True or error string."""
+        user = self.get_user_by_email(email)
+        if not user:
+            return 'Email không tồn tại'
+        if user.get('reset_otp') != otp:
+            return 'Mã OTP không đúng'
+        expires_at = user.get('reset_otp_expires_at')
+        if not expires_at or datetime.now() > datetime.fromisoformat(expires_at):
+            return 'Mã OTP đã hết hạn (10 phút)'
+        new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET password_hash = ?, reset_otp = NULL, reset_otp_expires_at = NULL WHERE id = ?',
+            (new_hash, user['id'])
+        )
+        conn.commit()
+        conn.close()
+        return True
+
     def create_group_member(self, full_name, email, group_code_id):
         """Create a group-member user (passwordless). Group members are Pro by default."""
         conn = self.get_connection()
@@ -884,25 +961,75 @@ class Database:
         return expired
 
     def can_send_sos(self, user_id: int) -> tuple[bool, int, int]:
-        """Returns (allowed, used, limit). limit=-1 means unlimited."""
+        """Returns (allowed, used, limit). limit=-1 means unlimited (Pro).
+        Free users get FREE_SOS_LIMIT per calendar month; count auto-resets.
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT is_pro, sos_count FROM users WHERE id = ?', (user_id,))
+        cursor.execute(
+            'SELECT is_pro, sos_count, sos_reset_at FROM users WHERE id = ?',
+            (user_id,)
+        )
         row = cursor.fetchone()
-        conn.close()
         if not row:
+            conn.close()
             return False, 0, self.FREE_SOS_LIMIT
+
         if row['is_pro']:
-            return True, row['sos_count'], -1
+            conn.close()
+            return True, row['sos_count'] or 0, -1
+
+        now = datetime.now()
+        reset_at = row['sos_reset_at']
+        needs_reset = False
+        if reset_at:
+            try:
+                last_reset = datetime.fromisoformat(reset_at)
+                if last_reset.year != now.year or last_reset.month != now.month:
+                    needs_reset = True
+            except Exception:
+                needs_reset = True
+        else:
+            # First time — initialise reset timestamp without touching sos_count
+            needs_reset = True
+
+        if needs_reset:
+            cursor.execute(
+                'UPDATE users SET sos_count = 0, sos_reset_at = ? WHERE id = ?',
+                (now.isoformat(), user_id)
+            )
+            conn.commit()
+            conn.close()
+            return True, 0, self.FREE_SOS_LIMIT
+
+        conn.close()
         used = row['sos_count'] or 0
         return used < self.FREE_SOS_LIMIT, used, self.FREE_SOS_LIMIT
 
     def increment_sos_count(self, user_id: int):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET sos_count = COALESCE(sos_count, 0) + 1 WHERE id = ?', (user_id,))
+        cursor.execute(
+            'UPDATE users SET sos_count = COALESCE(sos_count, 0) + 1 WHERE id = ?',
+            (user_id,)
+        )
         conn.commit()
         conn.close()
+
+    def reset_free_sos_counts(self) -> int:
+        """Reset sos_count = 0 cho tất cả tài khoản Free vào đầu tháng.
+        Trả về số lượng user được reset."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute(
+            "UPDATE users SET sos_count = 0, sos_reset_at = ? WHERE is_pro = 0",
+            (now,)
+        )
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return count
 
     # ── FCM tokens ───────────────────────────────────────────────────────────
 
@@ -941,6 +1068,62 @@ class Database:
         cursor.execute('DELETE FROM fcm_tokens WHERE token = ?', (token,))
         conn.commit()
         conn.close()
+
+    # ── Real-time Location Sharing ────────────────────────────────────────────
+
+    def upsert_user_location(self, user_id: int, latitude: float, longitude: float,
+                             accuracy: float = None) -> str:
+        """Upsert user's current location. Returns share_token."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        # Check if exists → reuse token
+        cursor.execute('SELECT share_token FROM user_locations WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+        if row:
+            token = row['share_token']
+            cursor.execute('''
+                UPDATE user_locations
+                SET latitude = ?, longitude = ?, accuracy = ?, updated_at = ?
+                WHERE user_id = ?
+            ''', (latitude, longitude, accuracy, datetime.now().isoformat(), user_id))
+        else:
+            token = secrets.token_urlsafe(16)
+            cursor.execute('''
+                INSERT INTO user_locations (user_id, latitude, longitude, accuracy, share_token, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, latitude, longitude, accuracy, token, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return token
+
+    def get_location_by_token(self, token: str) -> dict:
+        """Get location info by share_token (public, no auth needed)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT ul.*, u.full_name FROM user_locations ul
+            JOIN users u ON ul.user_id = u.id
+            WHERE ul.share_token = ?
+        ''', (token,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    # ── SOS History ───────────────────────────────────────────────────────────
+
+    def get_sos_history(self, user_id: int, limit: int = 20, offset: int = 0) -> tuple:
+        """Return (list, total) of SOS reports for a user, newest first."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT * FROM sos_reports WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            (user_id, limit, offset)
+        )
+        reports = [dict(r) for r in cursor.fetchall()]
+        cursor.execute('SELECT COUNT(*) as cnt FROM sos_reports WHERE user_id = ?', (user_id,))
+        total = cursor.fetchone()['cnt']
+        conn.close()
+        return reports, total
 
     # ── News (RSS) ────────────────────────────────────────────────────────────
 

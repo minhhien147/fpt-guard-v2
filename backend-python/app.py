@@ -19,7 +19,7 @@ from data_processor import WaterLevelProcessor
 import config
 from database import db
 from auth import require_auth, require_admin, get_client_ip, get_device_info
-from email_sender import send_verification_otp, send_resend_otp, send_pro_activated, send_pro_expired
+from email_sender import send_verification_otp, send_resend_otp, send_pro_activated, send_pro_expired, send_reset_password_otp
 from push_service import notify_sos, notify_pro_activated, notify_account_locked, send_push
 import json as json_module
 
@@ -628,6 +628,75 @@ def resend_otp():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """
+    Gửi OTP đặt lại mật khẩu đến email.
+
+    Body: { "email": "user@example.com" }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return jsonify({'success': False, 'error': 'email là bắt buộc'}), 400
+
+        user = db.get_user_by_email(email)
+        # Không tiết lộ email có tồn tại hay không (bảo mật)
+        if not user:
+            return jsonify({'success': True, 'message': f'Nếu email {email} tồn tại, mã OTP đã được gửi.'})
+
+        if not user.get('is_active', 1):
+            return jsonify({'success': False, 'error': 'Tài khoản đã bị khóa'}), 403
+
+        otp = db.generate_reset_otp(user['id'])
+        sent, send_err = send_reset_password_otp(email, user['full_name'], otp)
+
+        db.log_activity(user['id'], 'forgot_password_requested', ip_address=get_client_ip())
+        return jsonify({
+            'success': True,
+            'email_sent': sent,
+            'email_error': send_err if not sent else None,
+            'message': f'Mã OTP đã được gửi đến {email}' if sent else f'Không gửi được email: {send_err}',
+        })
+    except Exception as e:
+        logger.error(f'Error in forgot_password: {e}')
+        return jsonify({'success': False, 'error': 'Đã xảy ra lỗi, vui lòng thử lại'}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Đặt lại mật khẩu bằng OTP.
+
+    Body: { "email": "user@example.com", "otp": "123456", "new_password": "..." }
+    """
+    try:
+        data = request.get_json() or {}
+        email        = (data.get('email')        or '').strip().lower()
+        otp          = (data.get('otp')          or '').strip()
+        new_password = (data.get('new_password') or '').strip()
+
+        if not email or not otp or not new_password:
+            return jsonify({'success': False, 'error': 'email, otp và new_password là bắt buộc'}), 400
+
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'error': 'Mật khẩu phải có ít nhất 6 ký tự'}), 400
+
+        result = db.verify_reset_otp_and_change_password(email, otp, new_password)
+        if result is not True:
+            return jsonify({'success': False, 'error': result}), 400
+
+        user = db.get_user_by_email(email)
+        if user:
+            db.log_activity(user['id'], 'password_reset', ip_address=get_client_ip())
+
+        return jsonify({'success': True, 'message': 'Mật khẩu đã được đặt lại thành công'})
+    except Exception as e:
+        logger.error(f'Error in reset_password: {e}')
+        return jsonify({'success': False, 'error': 'Đặt lại mật khẩu thất bại'}), 500
+
+
 @app.route('/api/auth/group-login', methods=['POST'])
 def group_login():
     """
@@ -822,15 +891,38 @@ def update_profile():
         data = request.get_json()
         
         # Only allow updating certain fields
-        allowed_fields = ['full_name', 'phone', 'student_id']
-        updates = {k: v for k, v in data.items() if k in allowed_fields}
-        
+        allowed_fields = ['full_name', 'phone', 'student_id', 'email']
+        updates = {k: v for k, v in data.items() if k in allowed_fields and v is not None}
+
         if not updates:
             return jsonify({
                 'success': False,
                 'error': 'No valid fields to update'
             }), 400
-        
+
+        # Validate email format + uniqueness if email is being changed
+        if 'email' in updates:
+            new_email = updates['email'].strip().lower()
+            if '@' not in new_email:
+                return jsonify({'success': False, 'error': 'Email không hợp lệ'}), 400
+            existing = db.get_user_by_email(new_email)
+            if existing and existing['id'] != request.user_id:
+                return jsonify({'success': False, 'error': 'Email này đã được sử dụng bởi tài khoản khác'}), 409
+            updates['email'] = new_email
+
+        # Validate student_id uniqueness if being changed
+        if 'student_id' in updates:
+            new_sid = (updates['student_id'] or '').strip()
+            if new_sid:
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                cursor.execute('SELECT id FROM users WHERE student_id = ?', (new_sid,))
+                row = cursor.fetchone()
+                conn.close()
+                if row and row['id'] != request.user_id:
+                    return jsonify({'success': False, 'error': 'Mã số sinh viên này đã được sử dụng bởi tài khoản khác'}), 409
+            updates['student_id'] = new_sid or None
+
         user = db.update_user(request.user_id, **updates)
         
         # Log activity
@@ -843,7 +935,9 @@ def update_profile():
             'success': True,
             'data': user
         })
-        
+
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 409
     except Exception as e:
         logger.error(f"Error updating profile: {str(e)}")
         return jsonify({
@@ -1342,6 +1436,131 @@ def track_activity():
 # ============================================================================
 # ERROR HANDLERS
 # ============================================================================
+
+# ============================================================================
+# SOS HISTORY
+# ============================================================================
+
+@app.route('/api/sos/history', methods=['GET'])
+@require_auth
+def sos_history(session):
+    """Lịch sử SOS của user hiện tại (Pro feature).
+    Query: ?limit=20&offset=0
+    """
+    try:
+        user_id = session['user_id']
+        limit = min(int(request.args.get('limit', 20)), 50)
+        offset = int(request.args.get('offset', 0))
+        reports, total = db.get_sos_history(user_id=user_id, limit=limit, offset=offset)
+
+        # Stats
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT sos_count, sos_reset_at, is_pro FROM users WHERE id = ?', (user_id,))
+        urow = cursor.fetchone()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'reports': reports,
+            'total': total,
+            'this_month_count': urow['sos_count'] if urow else 0,
+            'is_pro': bool(urow['is_pro']) if urow else False,
+            'reset_at': urow['sos_reset_at'] if urow else None,
+            'limit': limit,
+            'offset': offset,
+        })
+    except Exception as e:
+        logger.error(f'sos_history error: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# REAL-TIME LOCATION SHARING (Pro)
+# ============================================================================
+
+@app.route('/api/location/ping', methods=['POST'])
+@require_auth
+def location_ping(session):
+    """Cập nhật vị trí real-time. Trả về share_token (Pro only).
+    Body: { latitude, longitude, accuracy? }
+    """
+    try:
+        user_id = session['user_id']
+        # Check Pro
+        user = db.get_user_by_id(user_id)
+        if not user or not user.get('is_pro'):
+            return jsonify({'success': False, 'error': 'Tính năng dành cho tài khoản Pro'}), 403
+
+        data = request.get_json() or {}
+        lat = float(data.get('latitude', 0))
+        lng = float(data.get('longitude', 0))
+        acc = data.get('accuracy')
+
+        token = db.upsert_user_location(user_id, lat, lng, acc)
+        share_url = f"{request.host_url.rstrip('/')}/api/location/live/{token}"
+
+        return jsonify({
+            'success': True,
+            'share_token': token,
+            'share_url': share_url,
+            'updated_at': datetime.now(pytz.timezone(config.TIMEZONE)).isoformat(),
+        })
+    except Exception as e:
+        logger.error(f'location_ping error: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/location/live/<token>', methods=['GET'])
+def location_live(token):
+    """Xem vị trí real-time qua link công khai (không cần đăng nhập).
+    Trả về HTML page với bản đồ nhúng.
+    """
+    loc = db.get_location_by_token(token)
+    if not loc:
+        return '<h2>Link không hợp lệ hoặc đã hết hạn.</h2>', 404
+
+    lat = loc['latitude']
+    lng = loc['longitude']
+    name = loc['full_name']
+    updated = loc['updated_at']
+    maps_url = f"https://www.google.com/maps?q={lat},{lng}"
+    embed_url = f"https://maps.google.com/maps?q={lat},{lng}&z=16&output=embed"
+
+    html = f"""<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vị trí của {name} – SAFE GUARD</title>
+<style>
+  body{{font-family:Arial,sans-serif;margin:0;background:#f0f4f8;}}
+  .card{{max-width:480px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.12);}}
+  .header{{background:#0077B6;color:#fff;padding:16px 20px;}}
+  .header h2{{margin:0;font-size:18px;}}
+  .header p{{margin:4px 0 0;font-size:13px;opacity:.85;}}
+  iframe{{width:100%;height:280px;border:0;}}
+  .info{{padding:16px 20px;}}
+  .info p{{margin:6px 0;font-size:14px;color:#333;}}
+  .btn{{display:block;background:#0077B6;color:#fff;text-align:center;padding:12px;border-radius:8px;
+        text-decoration:none;font-weight:bold;margin-top:12px;}}
+  .footer{{font-size:11px;color:#999;text-align:center;padding:10px 0 16px;}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h2>📍 Vị trí của {name}</h2>
+    <p>Cập nhật lúc: {updated[:19].replace('T',' ')}</p>
+  </div>
+  <iframe src="{embed_url}" allowfullscreen></iframe>
+  <div class="info">
+    <p><strong>Tọa độ:</strong> {lat:.6f}, {lng:.6f}</p>
+    <a href="{maps_url}" class="btn" target="_blank">🗺️ Mở Google Maps</a>
+  </div>
+  <div class="footer">SAFE GUARD – Ứng dụng bảo vệ an toàn sinh viên</div>
+</div>
+</body></html>"""
+    return html
+
 
 # ============================================================================
 # NEWS ENDPOINTS
